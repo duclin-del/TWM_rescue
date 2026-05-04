@@ -65,6 +65,15 @@
             color: #fff;
             box-shadow: 0 0 10px #ff0055;
         }
+        .cr-btn {
+            border-color: #ffcc00;
+            color: #ffcc00;
+        }
+        .cr-btn:hover {
+            background-color: #ffcc00;
+            color: #000;
+            box-shadow: 0 0 10px #ffcc00;
+        }
     </style>
 </head>
 <body>
@@ -81,9 +90,11 @@
 
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button>
-    <button id="warnBtn" class="warning-btn">發送警報 (廣播)</button>
+    <br>
+    <button id="warnBtn" class="warning-btn">🚨 發送緊急警報</button>
+    <button id="crBtn" class="cr-btn">🔊 請支援 CR</button>
     
-    <!-- 隱藏的警告音訊元件 -->
+    <!-- 隱藏的警告音訊元件 (用於緊急警報) -->
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
@@ -91,23 +102,22 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    import { firebaseConfig } from './firebase-config.js'; // 從外部載入設定檔
+    import { firebaseConfig } from './firebase-config.js'; 
 
-    // 1. 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // DOM 元素
     const userIdInput = document.getElementById('userId');
     const statusPanel = document.getElementById('statusPanel');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const warnBtn = document.getElementById('warnBtn');
+    const crBtn = document.getElementById('crBtn');
     const alertSound = document.getElementById('alertSound');
 
     let watchId = null;
 
-    // 2. 啟動 GPS 追蹤並同步至 Firebase
+    // 啟動 GPS 追蹤並同步至 Firebase
     startBtn.addEventListener('click', () => {
         const uid = userIdInput.value.trim();
         if (!uid) return alert('請輸入使用者 ID');
@@ -116,16 +126,13 @@
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
         
-        // 監聽本地位置變更
         watchId = navigator.geolocation.watchPosition(
             (position) => {
                 const { latitude, longitude, accuracy } = position.coords;
                 const timestamp = new Date().toISOString();
                 
-                // 更新 UI
                 statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m`;
 
-                // 寫入 Firebase (符合簡章標準化 JSON 輸出)
                 const locationData = {
                     lat: latitude,
                     lng: longitude,
@@ -140,11 +147,10 @@
             { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
         );
 
-        // 啟動自身警報監聽
         listenForWarnings(uid);
     });
 
-    // 3. 停止追蹤
+    // 停止追蹤
     stopBtn.addEventListener('click', () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         startBtn.style.display = 'inline-block';
@@ -155,37 +161,41 @@
         update(ref(db, `tracking/users/${uid}`), { status: "offline" });
     });
 
-    // 4. 雙向警報：發送全域警告訊號
+    // 雙向緊急警報
     warnBtn.addEventListener('click', () => {
         const timestamp = new Date().getTime();
-        // 將警告標記寫入全域節點，所有連線中的客戶端都會收到
         set(ref(db, `tracking/alerts/global`), {
             triggerBy: userIdInput.value.trim(),
             timestamp: timestamp
         });
-        statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送警告訊號！</span>`;
+        statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送緊急警告訊號！</span>`;
     });
 
-    // 5. 雙向警報：監聽遠端警告訊號
+    // 趣味廣播：請支援 CR
+    crBtn.addEventListener('click', () => {
+        const timestamp = new Date().getTime();
+        set(ref(db, `tracking/alerts/fun_cr`), {
+            triggerBy: userIdInput.value.trim(),
+            timestamp: timestamp
+        });
+        statusPanel.innerHTML += `<br><span style="color:#ffcc00">已發送「請支援 CR」廣播！</span>`;
+    });
+
+    // 監聽遠端緊急警告訊號
     function listenForWarnings(currentUid) {
         const alertRef = ref(db, 'tracking/alerts/global');
         let initialLoad = true;
 
         onValue(alertRef, (snapshot) => {
             const data = snapshot.val();
-            // 避免初始載入時觸發舊警報
             if (initialLoad) {
                 initialLoad = false;
                 return;
             }
             if (data && data.triggerBy !== currentUid) {
-                // 播放警告音訊
                 alertSound.play().catch(e => console.log('音訊播放需使用者互動解鎖:', e));
-                
-                // 畫面閃爍特效
                 document.body.style.backgroundColor = '#500';
                 setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
-                
                 statusPanel.innerHTML += `<br><span style="color:#ff0055">收到來自 ${data.triggerBy} 的警告！</span>`;
             }
         });

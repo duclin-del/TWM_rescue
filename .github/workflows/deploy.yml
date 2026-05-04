@@ -1,0 +1,36 @@
+name: Deploy with Secrets
+
+on:
+  push:
+    branches:
+      - main  # 或是你的主分支名稱
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Replace API Key in Files
+        run: |
+          # 使用 sed 指令將預留字串替換為祕密變數
+          sed -i "s/REPLACE_WITH_OPENROUTER_KEY/${{ secrets.MY_OPENROUTER_KEY }}/g" index.html
+          sed -i "s/REPLACE_WITH_OPENROUTER_KEY/${{ secrets.MY_OPENROUTER_KEY }}/g" map.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

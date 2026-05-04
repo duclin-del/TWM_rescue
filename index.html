@@ -19,7 +19,7 @@
 <div class="container">
     <h2 style="margin-top:0;">通報終端</h2>
     <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
-    <div class="data-panel" id="statusPanel">狀態：待命<br>緯度：--<br>經度：--<br>電量：--</div>
+    <div class="data-panel" id="statusPanel">狀態：待命<br>緯度：--<br>經度：--</div>
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button><br>
     
@@ -30,7 +30,6 @@
     
     <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航</a>
     
-    <!-- 警告音效與無聲音軌 (用於維持背景存活) -->
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
     <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
 </div>
@@ -50,17 +49,18 @@
     };
 
     let watchId = null, lastHistoryTime = 0, wakeLock = null;
-    let batteryInfo = { level: '--', charging: false };
+    let batteryInfo = null; // 預設為 null，若不支援則維持 null
 
-    // 電量監控
+    // 電量監控 (排除 iOS 不支援的情況)
     if ('getBattery' in navigator) {
         navigator.getBattery().then(bat => {
+            batteryInfo = { level: Math.round(bat.level * 100), charging: bat.charging };
             const upBat = () => { batteryInfo.level = Math.round(bat.level * 100); batteryInfo.charging = bat.charging; };
-            upBat(); bat.addEventListener('levelchange', upBat); bat.addEventListener('chargingchange', upBat);
-        });
+            bat.addEventListener('levelchange', upBat); 
+            bat.addEventListener('chargingchange', upBat);
+        }).catch(() => {});
     }
 
-    // 防止螢幕休眠機制
     async function requestWakeLock() {
         if ('wakeLock' in navigator) {
             try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
@@ -71,9 +71,8 @@
         const uid = ui.userId.value.trim();
         if (!uid) return alert('請輸入 ID');
         
-        // 權限與背景存活黑科技
         ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
-        ui.silent.play().catch(e=>{}); // 播放無聲音軌防休眠
+        ui.silent.play().catch(e=>{});
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
         requestWakeLock();
 
@@ -82,11 +81,17 @@
         watchId = navigator.geolocation.watchPosition((pos) => {
             const { latitude, longitude } = pos.coords;
             const now = Date.now();
-            ui.status.innerHTML = `狀態：傳輸中<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
             
-            update(ref(db, `tracking/users/${uid}`), { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active", battery: batteryInfo.level, charging: batteryInfo.charging });
+            let statusHtml = `狀態：傳輸中<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}`;
+            if (batteryInfo) statusHtml += `<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
+            ui.status.innerHTML = statusHtml;
             
-            // 預設 1 分鐘 (60000ms) 記錄一次歷史軌跡
+            // 準備上傳資料
+            let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
+            if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
+            
+            update(ref(db, `tracking/users/${uid}`), payload);
+            
             if (now - lastHistoryTime > 60000) {
                 lastHistoryTime = now;
                 set(ref(db, `tracking/history/${uid}/${now}`), { lat: latitude, lng: longitude });
@@ -104,19 +109,18 @@
         update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false });
     });
 
-    // 手機端發送警報 (電腦端名字閃爍+音效)
     document.getElementById('warnBtn').onclick = () => {
         const uid = ui.userId.value.trim();
-        update(ref(db, `tracking/users/${uid}`), { isAlarm: true }); // 觸發閃爍
-        set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() }); // 觸發電腦音效
-        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000); // 10秒後解除閃爍
+        update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
+        set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
     };
 
-    // 手機端發送支援 CR (電腦端名字加標籤+無音效)
     document.getElementById('crBtn').onclick = () => {
         const uid = ui.userId.value.trim();
-        update(ref(db, `tracking/users/${uid}`), { needCR: true }); // 觸發標籤
+        update(ref(db, `tracking/users/${uid}`), { needCR: true });
         set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); // 15秒後自動取消CR標籤
     };
 
     function playAlert(msg, color) {
@@ -126,26 +130,17 @@
     }
 
     function listenCmd(uid) {
-        // 監聽徹底刪除
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
-        
-        // 監聽強制離線
         onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) ui.stop.click(); });
-        
-        // 監聽全體撤退 (Global Retreat)
         onValue(ref(db, `tracking/commands/global/retreat`), (snap) => {
             if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('全體人員注意，立即撤退！', '#ff0000');
         });
-
-        // 監聽單獨警報/呼叫
         onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
             if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心發出緊急警報！', '#ff0055');
         });
         onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
             if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心呼叫，請支援 CR！', '#665000');
         });
-
-        // 監聽路徑派發
         onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
             const data = snap.val();
             if (data && data.timestamp > Date.now() - 5000) {

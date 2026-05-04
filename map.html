@@ -11,38 +11,35 @@
         #map { width: 100%; height: 100%; background: #000; }
         .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%); }
         
-        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 15px; display: flex; flex-direction: column; min-width: 400px; }
+        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 15px; display: flex; flex-direction: column; min-width: 380px; }
         
-        /* 頂部工具列 */
         .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #047a80; padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 5px; }
         .toolbar button { background: transparent; border: 1px solid #00f3ff; color: #00f3ff; padding: 5px 8px; cursor: pointer; border-radius: 3px; font-weight: bold; }
         .toolbar button:hover { background: #00f3ff; color: #000; }
         .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; }
         .btn-danger:hover { background: #ff0055 !important; color: #fff !important; }
 
-        /* 卡片設計 */
-        .user-card { background: rgba(0,0,0,0.6); border: 1px solid #047a80; padding: 10px; margin-bottom: 8px; font-size: 0.85em; border-radius: 4px; }
+        .user-card { background: rgba(0,0,0,0.6); border: 1px solid #047a80; padding: 8px 10px; margin-bottom: 8px; font-size: 0.85em; border-radius: 4px; }
         .user-card:hover { border-color: #00f3ff; }
         
-        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 5px; }
-        .info-row { color: #aaa; margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 4px; }
+        .info-row { color: #aaa; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
         
-        /* 動態標籤與特效 */
         .cr-tag { background: #ffcc00; color: #000; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
         .flash-name { color: #ff0055; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
         
-        /* 按鈕區 */
-        .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
-        .action-btn { background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 3px; text-align: center; }
+        .battery-badge { font-size: 0.8em; padding: 1px 5px; border-radius: 3px; border: 1px solid #00f3ff; margin-left: auto; }
+        .battery-low { border-color: #ff0055; color: #ff0055; animation: blinkFast 1s infinite alternate; }
+
+        .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 5px; }
+        .action-btn { background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 4px 0; cursor: pointer; border-radius: 3px; text-align: center; }
         .btn-alert { border-color: #ff0055; color: #ff0055; }
         .btn-call { border-color: #ffcc00; color: #ffcc00; }
         .btn-path { border-color: #00ffaa; color: #00ffaa; }
         .btn-off { border-color: #888; color: #888; }
         
-        #log-panel { height: 120px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
-        
-        /* 自訂 Checkbox */
+        #log-panel { height: 100px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
         input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 8px; cursor: pointer; }
     </style>
 </head>
@@ -50,7 +47,7 @@
 <div id="map-container"><div id="map"></div></div>
 <div id="sidebar">
     <div class="toolbar">
-        <button onclick="clearPath()">清除路徑</button>
+        <button onclick="clearPath()">清除路徑/標記</button>
         <button onclick="toggleAllTrack(true)">全選</button>
         <button onclick="toggleAllTrack(false)">取消全選</button>
         <button class="btn-danger" onclick="allRetreat()">🚨 全體撤退</button>
@@ -60,7 +57,6 @@
     <details><summary style="cursor:pointer; color:#888; padding:5px; border-top:1px solid #333; margin-top:5px;">離線紀錄</summary><div id="offline-list"></div></details>
     <div id="log-panel" id="logs"></div>
     
-    <!-- 電腦端警報音效 -->
     <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
@@ -78,12 +74,10 @@
     let plannedPath = [], pathMarkers = [];
     let pathLine = L.polyline([], {color:'#00ffaa', weight:3, dashArray:'5,10'}).addTo(map);
     
-    // 狀態管理
-    const activeTrackers = new Set(); // 記錄目前被勾選追蹤的 UID
-    let knownUsers = new Set();       // 記錄已出現過的使用者，供預設開啟判斷
+    const activeTrackers = new Set(); 
+    let knownUsers = new Set();       
     const markers = {}, polylines = {}, hListeners = {};
 
-    // 地圖點擊路徑
     map.on('click', e => {
         plannedPath.push([e.latlng.lat, e.latlng.lng]);
         pathLine.setLatLngs(plannedPath);
@@ -91,21 +85,18 @@
         log(`已加入路徑點`);
     });
 
-    // 💡 頂部按鈕：清除路徑與標記
     window.clearPath = () => { 
         plannedPath = []; pathLine.setLatLngs([]); 
         pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; 
         log("路徑與標記已清除"); 
     };
 
-    // 💡 頂部按鈕：全選/取消全選核選框
     window.toggleAllTrack = (check) => {
         document.querySelectorAll('.track-cb').forEach(cb => {
             if (cb.checked !== check) { cb.checked = check; cb.dispatchEvent(new Event('change')); }
         });
     };
 
-    // 💡 頂部按鈕：全體撤退
     window.allRetreat = () => {
         if(confirm('確定要對所有人員發出「全體撤退」警報嗎？')) {
             set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() });
@@ -115,7 +106,6 @@
 
     function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString()}] ${m}`; document.getElementById('log-panel').prepend(d); }
 
-    // 主要資料更新監聽
     onValue(ref(db, 'tracking/users'), snap => {
         const data = snap.val() || {};
         document.getElementById('user-list').innerHTML = '';
@@ -124,19 +114,26 @@
         Object.keys(data).forEach(uid => {
             const u = data[uid];
             if (u.status === 'active') {
-                // 如果是新上線的人，預設加入追蹤名單
-                if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); enableTrajectory(uid); }
+                if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
                 renderCard(uid, u);
-                updateMarker(uid, u);
+                
+                // 只有核選時才顯示光點與軌跡
+                if (activeTrackers.has(uid)) {
+                    updateMarker(uid, u);
+                    enableTrajectory(uid);
+                } else {
+                    removeMarker(uid);
+                    disableTrajectory(uid);
+                }
             } else {
                 renderOffline(uid, u);
-                if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; }
-                if (activeTrackers.has(uid)) { activeTrackers.delete(uid); disableTrajectory(uid); }
+                if (activeTrackers.has(uid)) { activeTrackers.delete(uid); }
+                removeMarker(uid);
+                disableTrajectory(uid);
             }
         });
     });
 
-    // 監聽手機發送的警報 (僅播放音效，閃爍由 isAlarm 控制)
     let initialGlobalAlert = true;
     onValue(ref(db, 'tracking/alerts/global'), (snap) => {
         if (initialGlobalAlert) { initialGlobalAlert = false; return; }
@@ -147,7 +144,6 @@
         }
     });
 
-    // 監聽手機發送的 CR (純訊息，標籤由 needCR 控制)
     let initialCrAlert = true;
     onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
         if (initialCrAlert) { initialCrAlert = false; return; }
@@ -159,23 +155,23 @@
         const div = document.createElement('div'); 
         div.className = 'user-card';
         const isTracked = activeTrackers.has(uid);
-        
-        // 判斷閃爍與標籤
         const nameClass = u.isAlarm ? 'flash-name' : '';
         const crTag = u.needCR ? `<span class="cr-tag">支援CR</span>` : '';
+        
+        // 判斷是否顯示電池 (如果 Firebase 裡沒有 battery 屬性，代表不支援，就不顯示)
+        let batteryHTML = '';
+        if (u.battery !== undefined && u.battery !== null) {
+            const batClass = u.battery <= 20 ? 'battery-low' : '';
+            batteryHTML = `<span class="battery-badge ${batClass}">🔋${u.battery}% ${u.charging ? '⚡' : ''}</span>`;
+        }
 
-        // 💡 依要求排版：核選追蹤 -> 姓名 -> 經緯度 -> 時間 -> 下方四按鈕
         div.innerHTML = `
             <div class="header-row">
                 <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''}>
-                <span class="${nameClass}">追蹤 ${uid}</span> ${crTag}
+                <span class="${nameClass}">${uid}</span> ${crTag} ${batteryHTML}
             </div>
             <div class="info-row">
-                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</span>
-                <span>電量: ${u.battery}%</span>
-            </div>
-            <div class="info-row" style="font-size:0.9em; color:#888;">
-                最後回報: ${new Date(u.timestamp).toLocaleTimeString()}
+                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)} &nbsp;|&nbsp; 回報: ${new Date(u.timestamp).toLocaleTimeString()}</span>
             </div>
             <div class="action-grid">
                 <button class="action-btn btn-alert" onclick="sendCmd('${uid}', 'targeted_alert')">警報</button>
@@ -185,10 +181,12 @@
             </div>`;
         document.getElementById('user-list').appendChild(div);
 
-        // 綁定 Checkbox 事件
         div.querySelector('.track-cb').addEventListener('change', (e) => {
-            if (e.target.checked) { activeTrackers.add(uid); enableTrajectory(uid); } 
-            else { activeTrackers.delete(uid); disableTrajectory(uid); }
+            if (e.target.checked) { 
+                activeTrackers.add(uid); updateMarker(uid, u); enableTrajectory(uid); 
+            } else { 
+                activeTrackers.delete(uid); removeMarker(uid); disableTrajectory(uid); 
+            }
         });
     }
 
@@ -199,16 +197,18 @@
     }
 
     function updateMarker(uid, u) {
-        const color = u.isAlarm ? '#ff0055' : '#00f3ff'; // 警報時地圖圓點變紅
+        const color = u.isAlarm ? '#ff0055' : '#00f3ff';
         if (markers[uid]) { 
-            markers[uid].setLatLng([u.lat, u.lng]); 
-            markers[uid].setStyle({color: color}); 
+            markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); 
         } else { 
-            markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color}).addTo(map); 
+            markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color, fillOpacity: 0.8}).addTo(map); 
         }
     }
+    
+    function removeMarker(uid) {
+        if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; }
+    }
 
-    // 軌跡控制邏輯
     function enableTrajectory(uid) {
         if (!hListeners[uid]) {
             hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
@@ -218,6 +218,7 @@
             });
         }
     }
+    
     function disableTrajectory(uid) {
         if (polylines[uid]) { map.removeLayer(polylines[uid]); delete polylines[uid]; }
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }

@@ -23,40 +23,36 @@
 
         #sidebar { flex: 1; background: linear-gradient(135deg, #020608 0%, #05131a 100%); padding: 15px; display: flex; flex-direction: column; min-width: 420px; z-index: 10; box-shadow: -5px 0 15px rgba(0,243,255,0.05); }
         
-        .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid rgba(4, 122, 128, 0.5); }
-        .toolbar button { background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: all 0.2s; }
+        /* 雙層工具列排版 */
+        .toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(4, 122, 128, 0.5); }
+        .toolbar-row { display: flex; gap: 6px; width: 100%; justify-content: space-between; }
+        .toolbar button { flex: 1; background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 4px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.85em; }
         .toolbar button:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px rgba(0,243,255,0.5); }
         .btn-ai { border-color: #bb00ff !important; color: #bb00ff !important; }
         .btn-ai:hover { background: #bb00ff !important; color: #fff !important; }
         .btn-export { border-color: #00ffaa !important; color: #00ffaa !important; }
         .btn-export:hover { background: #00ffaa !important; color: #000 !important; }
-        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; }
+        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; padding: 8px !important; font-size: 0.9em !important; }
         .btn-danger:hover { background: #ff0055 !important; color: #fff !important; }
 
         .user-card { background: rgba(0, 20, 30, 0.4); border-left: 4px solid #005577; padding: 12px; margin-bottom: 10px; border-radius: 4px; position: relative; transition: all 0.3s; }
         .user-card:hover { border-left-color: #00f3ff; background: rgba(0, 30, 45, 0.6); }
         .user-card.severe { border-left-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
         
-        .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 6px; flex-wrap: wrap; }
+        .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 4px; flex-wrap: wrap; }
         
-        /* 修改：點擊人名的樣式 (移除十字，改用外框) */
         .user-name { font-weight: bold; color: #00f3ff; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
         .user-name:hover { background: rgba(0, 243, 255, 0.1); outline: 1px solid #00f3ff; text-shadow: 0 0 8px #00f3ff; }
         
-        /* 環境標籤與人名的間距設定 */
-        .tags-container { display: flex; gap: 4px; margin-left: 10px; align-items: center; flex-wrap: wrap;}
-        
-        .info-row { color: #888; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em; font-family: monospace; }
+        /* 環境標籤與時間排版 */
+        .tags-container { display: flex; gap: 4px; margin-left: 10px; align-items: center; flex-wrap: wrap; flex: 1; }
+        .time-badge { margin-left: auto; font-size: 0.75em; color: #666; font-family: monospace; }
         
         .tag-outline { border: 1px solid currentColor; color: #00ffaa; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }
         .tag-solid { background: currentColor; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.8); }
         
         .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
-        
-        .battery-badge { font-size: 0.8em; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
-        .battery-normal { border: 1px solid #005577; color: #00aaff; }
-        .battery-low { background: #ff0055; color: #fff; animation: blinkFast 1s infinite alternate; font-weight: bold; box-shadow: 0 0 8px #ff0055; }
 
         /* 動作按鈕區塊 */
         .action-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -67,11 +63,11 @@
         .btn-off { border-color: #555; color: #888; } .btn-off:hover { background: #555; color: #fff; }
         .btn-photo { border-color: #00aaff; color: #00aaff; } .btn-photo:hover { background: #00aaff; color: #000; }
         
-        .remark-box { margin-top: 8px; font-size: 0.85em; color: #ccc; background: rgba(255, 255, 255, 0.05); padding: 6px 10px; border-radius: 4px; border-left: 2px solid #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
+        .remark-box { margin-top: 6px; font-size: 0.85em; color: #ccc; background: rgba(255, 255, 255, 0.05); padding: 6px 10px; border-radius: 4px; border-left: 2px solid #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
         .remark-box:hover { border-left-color: #ffaa00; color: #ffaa00; background: rgba(255, 255, 255, 0.1); }
         .remark-box.expanded { white-space: normal; word-break: break-all; }
         
-        .ai-box { margin-top: 8px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; }
+        .ai-box { margin-top: 6px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; }
         .ai-box.ai-severe { border-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
         .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; margin-right: 6px; margin-bottom: 4px; font-size: 0.85em; }
         .ai-urgency-high { background: #ff0055; color: #fff; font-weight: bold; box-shadow: 0 0 8px #ff0055; animation: blinkFast 1s infinite alternate; }
@@ -98,19 +94,19 @@
 
 <div id="map-container">
     <div id="map"></div>
-    <!-- 地圖上方座標 HUD -->
     <div id="map-coord-overlay"></div>
 </div>
 
 <div id="sidebar">
     <div class="toolbar">
-        <button class="btn-ai" onclick="generateAIReport()">AI總結</button>
-        <button class="btn-export" onclick="exportGeoJSON()">GeoJSON</button>
-        <button onclick="toggleMapType()">🛰️ 衛星視角</button>
-        <button onclick="toggleAllTrack(true)">全選</button>
-        <button onclick="toggleAllTrack(false)">不選</button>
-        <button onclick="clearPath()">清空路徑</button>
-        <button class="btn-danger" onclick="allRetreat()" style="width: 100%; margin-top: 4px;">🚨 全體撤退</button>
+        <div class="toolbar-row">
+            <button id="toggleAllBtn" onclick="toggleSelectAll()">全選</button>
+            <button onclick="toggleMapType()">衛星地圖</button>
+            <button onclick="clearPath()">清空路徑</button>
+            <button class="btn-ai" onclick="generateAIReport()">AI總結</button>
+            <button class="btn-export" onclick="exportGeoJSON()">JSON輸出</button>
+        </div>
+        <button class="btn-danger" onclick="allRetreat()">🚨 全體撤退</button>
     </div>
     
     <div id="user-list" style="flex:1; overflow-y:auto; padding-right: 5px;"></div>
@@ -173,6 +169,7 @@
     window.globalPhotos = {}; 
     let currentModalPhotos = [], currentPhotoIndex = 0;
     let currentUsersData = {}; 
+    let hudTimeout = null;
 
     // 地圖點擊：自訂路徑規劃
     map.on('click', e => {
@@ -182,16 +179,17 @@
         log(`登錄導航航點：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
     });
 
-    // 💡 點擊雷達鎖定與浮動座標顯示
-    window.focusMap = (lat, lng, uid) => {
+    // 雷達鎖定與浮動座標顯示
+    window.focusMap = (lat, lng, uid, battery) => {
         map.flyTo([lat, lng], 17, { duration: 1.2, easeLinearity: 0.25 });
         const overlay = document.getElementById('map-coord-overlay');
-        overlay.innerHTML = `📍 目標 [${uid}] | 座標：${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        let batStr = (battery !== null && battery !== undefined) ? ` | ⚡ ${battery}%` : '';
+        overlay.innerHTML = `📍 目標 [${uid}] | 座標：${lat.toFixed(5)}, ${lng.toFixed(5)}${batStr}`;
         overlay.style.display = 'block';
         log(`雷達鎖定：${uid}`);
         
-        // 點擊地圖其他地方時隱藏座標
-        map.once('move', () => { setTimeout(()=> overlay.style.display = 'none', 3000); });
+        if(hudTimeout) clearTimeout(hudTimeout);
+        hudTimeout = setTimeout(() => overlay.style.display = 'none', 4000);
     };
 
     // Firebase 監聽
@@ -231,7 +229,6 @@
         const nameClass = u.isAlarm ? 'flash-name' : '';
         const crTag = u.needCR ? `<span class="tag-outline" style="color:#ffcc00; border-color:#ffcc00;">請求CR</span>` : '';
         
-        // 💡 整理環境標籤，放置於名字後方
         let envTagHtml = '';
         if (u.envStatus) {
             u.envStatus.split(',').forEach(status => {
@@ -249,11 +246,7 @@
             });
         }
         
-        let batteryHTML = '';
-        if (u.battery !== undefined && u.battery !== null) {
-            const batClass = u.battery <= 20 ? 'battery-low' : 'battery-normal';
-            batteryHTML = `<span class="battery-badge ${batClass}">⚡${u.battery}%</span>`;
-        }
+        const timeStr = new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12: false});
         
         let aiHtml = '';
         if (u.ai_analysis) {
@@ -274,16 +267,14 @@
             photoBtnHtml = `<button class="action-btn btn-photo" onclick="showPhotoModal('${uid}')">📷 檢視照片(${u.images.length})</button>`;
         }
 
-        // 💡 結構調整：座標移除，環境標籤移至第一列
         div.innerHTML = `
             <div class="header-row">
                 <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="顯示/隱藏軌跡">
-                <span class="user-name ${nameClass}" onclick="focusMap(${u.lat}, ${u.lng}, '${uid}')" title="鎖定地圖位置">${uid}</span> 
-                <div class="tags-container">${crTag} ${envTagHtml}</div>
-            </div>
-            <div class="info-row">
-                <span>回報時間: ${new Date(u.timestamp).toLocaleTimeString()}</span>
-                ${batteryHTML}
+                <span class="user-name ${nameClass}" onclick="focusMap(${u.lat}, ${u.lng}, '${uid}', ${u.battery !== undefined ? u.battery : 'null'})" title="鎖定地圖位置">${uid}</span> 
+                <div class="tags-container">
+                    ${crTag} ${envTagHtml}
+                    <span class="time-badge">${timeStr}</span>
+                </div>
             </div>
             ${u.envRemark ? `<div class="remark-box" onclick="this.classList.toggle('expanded')">💬 備註：${u.envRemark}</div>` : ''}
             ${aiHtml}
@@ -305,7 +296,7 @@
 
     function renderOffline(uid, u) { 
         const div = document.createElement('div'); div.style.padding='6px 12px'; div.style.borderBottom='1px solid rgba(255,255,255,0.05)'; div.style.fontSize='0.8em'; div.style.fontFamily='monospace';
-        div.innerHTML = `<span style="color:#555">[-] ${uid} (已離線) - ${new Date(u.timestamp).toLocaleTimeString()}</span>`;
+        div.innerHTML = `<span style="color:#555">[-] ${uid} (已離線) - ${new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12:false})}</span>`;
         document.getElementById('offline-list').appendChild(div);
     }
 
@@ -313,8 +304,9 @@
         let color = '#00f3ff';
         if (u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高')) color = '#ff0055'; 
         
+        // 💡 標記優化：高透明度、細外框，不遮蔽底圖
         if (markers[uid]) { markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); } 
-        else { markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color, weight: 2, fillOpacity: 0.6}).addTo(map); }
+        else { markers[uid] = L.circleMarker([u.lat, u.lng], {radius:7, color: color, weight: 1.5, fillOpacity: 0.1}).addTo(map); }
     }
     
     function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
@@ -342,12 +334,17 @@
 
     window.clearPath = () => { plannedPath = []; pathLine.setLatLngs([]); pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; log("路徑標記已清空"); };
     
-    window.toggleAllTrack = (check) => { document.querySelectorAll('.track-cb').forEach(cb => { if (cb.checked !== check) { cb.checked = check; cb.dispatchEvent(new Event('change')); }});};
+    // 一鍵切換全選/不選
+    window.toggleSelectAll = () => {
+        const cbs = Array.from(document.querySelectorAll('.track-cb'));
+        const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
+        const targetState = !allChecked;
+        cbs.forEach(cb => { if (cb.checked !== targetState) { cb.checked = targetState; cb.dispatchEvent(new Event('change')); }});
+        document.getElementById('toggleAllBtn').innerText = targetState ? "不選" : "全選";
+    };
     
     window.allRetreat = () => { if(confirm('確定要對所有人員發布全域撤退？')) { set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() }); log("🚨 發布全體撤退指令"); }};
-    
     window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`傳送指令至：${uid}`); };
-    
     window.sendPath = uid => { if (plannedPath.length < 1) return alert("請先於地圖點擊以設置導航航點"); set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`路徑已發送至：${uid}`); };
     
     window.forceOff = uid => {
@@ -355,7 +352,6 @@
         else { set(ref(db, `tracking/commands/${uid}/force_offline`), { timestamp: Date.now() }); update(ref(db, `tracking/users/${uid}`), {status:'offline'}); }
     };
 
-    // 匯出 GeoJSON
     window.exportGeoJSON = () => {
         const features = [];
         Object.keys(currentUsersData).forEach(uid => {
@@ -366,7 +362,6 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `GeoData_${new Date().getTime()}.geojson`; a.click();
     };
 
-    // 照片 Modal 邏輯
     window.showPhotoModal = (uid) => {
         currentModalPhotos = window.globalPhotos[uid];
         if (!currentModalPhotos || currentModalPhotos.length === 0) return;
@@ -382,7 +377,6 @@
     };
     window.closePhotoModal = () => { document.getElementById('photoModal').style.display = 'none'; document.getElementById('modalImg').src = ''; };
 
-    // AI 總結邏輯 (OpenRouter)
     let currentReportText = "";
     window.generateAIReport = async () => {
         const activeUsers = Object.keys(currentUsersData).filter(uid => currentUsersData[uid].status === 'active').map(uid => ({
@@ -419,7 +413,7 @@
         a.download = `Report_${new Date().getTime()}.txt`; a.click();
     };
 
-    function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString()}] ${m}`; document.getElementById('log-panel').prepend(d); }
+    function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString('zh-TW', {hour12:false})}] ${m}`; document.getElementById('log-panel').prepend(d); }
 </script>
 </body>
 </html>

@@ -22,14 +22,11 @@
         .user-card { background: rgba(0,0,0,0.6); border: 1px solid #047a80; padding: 8px 10px; margin-bottom: 8px; font-size: 0.85em; border-radius: 4px; }
         .user-card:hover { border-color: #00f3ff; }
         
-        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 4px; }
+        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 4px; flex-wrap: wrap; gap: 4px; }
         .info-row { color: #aaa; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
         
-        /* 標籤設計區 */
-        .cr-tag { background: #ffcc00; color: #000; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
-        
-        /* 🔮 新增：環境狀態標籤設計 */
-        .env-tag { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; margin-left: 8px; font-weight: bold; vertical-align: middle; }
+        .cr-tag { background: #ffcc00; color: #000; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; vertical-align: middle; }
+        .env-tag { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; font-weight: bold; vertical-align: middle; }
         .env-safe { background: #00ffaa; color: #000; }
         .env-alert { background: #ffcc00; color: #000; }
         .env-blocked { background: #ff5500; color: #fff; }
@@ -50,8 +47,16 @@
         .btn-path { border-color: #00ffaa; color: #00ffaa; }
         .btn-off { border-color: #888; color: #888; }
         
+        /* 🔮 新增：備註框樣式 (單行截斷與展開) */
+        .remark-box { 
+            margin-top: 5px; font-size: 0.85em; color: #ffaa00; background: rgba(255, 170, 0, 0.1); 
+            padding: 4px 8px; border-radius: 3px; border-left: 2px solid #ffaa00; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease;
+        }
+        .remark-box.expanded { white-space: normal; word-break: break-all; }
+
         #log-panel { height: 100px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
-        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 8px; cursor: pointer; }
+        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -168,20 +173,23 @@
         const nameClass = u.isAlarm ? 'flash-name' : '';
         const crTag = u.needCR ? `<span class="cr-tag">支援CR</span>` : '';
         
-        // 🔮 解析並渲染環境狀態標籤
+        // 🔮 解析多重環境標籤 (陣列字串拆解)
         let envTagHtml = '';
         if (u.envStatus) {
-            let envClass = '';
-            switch(u.envStatus) {
-                case '安全': envClass = 'env-safe'; break;
-                case '警戒': envClass = 'env-alert'; break;
-                case '車輛不通': envClass = 'env-blocked'; break;
-                case '有傷患': envClass = 'env-casualty'; break;
-                case '前往集合': envClass = 'env-rally'; break;
-                case '路坍': envClass = 'env-collapse'; break;
-                default: envClass = ''; 
-            }
-            envTagHtml = `<span class="env-tag ${envClass}">${u.envStatus}</span>`;
+            const statuses = u.envStatus.split(',');
+            statuses.forEach(status => {
+                if (!status) return;
+                let envClass = '';
+                switch(status) {
+                    case '安全': envClass = 'env-safe'; break;
+                    case '警戒': envClass = 'env-alert'; break;
+                    case '車輛不通': envClass = 'env-blocked'; break;
+                    case '有傷患': envClass = 'env-casualty'; break;
+                    case '前往集合': envClass = 'env-rally'; break;
+                    case '路坍': envClass = 'env-collapse'; break;
+                }
+                envTagHtml += `<span class="env-tag ${envClass}">${status}</span>`;
+            });
         }
         
         let batteryHTML = '';
@@ -189,22 +197,31 @@
             const batClass = u.battery <= 20 ? 'battery-low' : '';
             batteryHTML = `<span class="battery-badge ${batClass}">🔋${u.battery}% ${u.charging ? '⚡' : ''}</span>`;
         }
+        
+        // 🔮 備註訊息框
+        let remarkHtml = '';
+        if (u.envRemark) {
+            // 點擊切換 .expanded 類別以展開或收合
+            remarkHtml = `<div class="remark-box" onclick="this.classList.toggle('expanded')" title="點擊展開/收合">📝 備註：${u.envRemark}</div>`;
+        }
 
-        // 第一行：核選框、姓名、CR標籤、環境標籤、電池(向右對齊)
         div.innerHTML = `
             <div class="header-row">
                 <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''}>
                 <span class="${nameClass}">${uid}</span> ${crTag} ${envTagHtml} ${batteryHTML}
             </div>
             <div class="info-row">
-                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)} &nbsp;|&nbsp; 回報: ${new Date(u.timestamp).toLocaleTimeString()}</span>
+                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</span>
+                <span>回報: ${new Date(u.timestamp).toLocaleTimeString()}</span>
             </div>
             <div class="action-grid">
                 <button class="action-btn btn-alert" onclick="sendCmd('${uid}', 'targeted_alert')">警報</button>
                 <button class="action-btn btn-call" onclick="sendCmd('${uid}', 'targeted_cr')">呼叫</button>
                 <button class="action-btn btn-path" onclick="sendPath('${uid}')">路徑</button>
                 <button class="action-btn btn-off" onclick="forceOff('${uid}')">離線</button>
-            </div>`;
+            </div>
+            ${remarkHtml}`;
+            
         document.getElementById('user-list').appendChild(div);
 
         div.querySelector('.track-cb').addEventListener('change', (e) => {

@@ -7,45 +7,50 @@
     <style>
         body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s ease; }
         .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 25px; width: 90%; max-width: 400px; text-align: center; }
-        .data-panel { background: #000; border: 1px solid #047a80; padding: 15px; margin: 15px 0; border-radius: 5px; font-family: monospace; text-align: left; font-size: 0.9em; line-height: 1.5; }
+        
+        /* 🔮 修改：資料面板改為單行顯示，文字縮小一點 */
+        .data-panel { background: #000; border: 1px solid #047a80; padding: 10px; margin: 15px 0; border-radius: 5px; font-family: monospace; font-size: 0.85em; }
+        
         button { background: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         button:hover { background: #00f3ff; color: #000; }
         .warning-btn { border-color: #ff0055; color: #ff0055; }
         .cr-btn { border-color: #ffcc00; color: #ffcc00; }
         .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
         
-        /* 🔮 新增：環境狀態回報按鈕區塊 */
         .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
-        .env-btn { border-color: #555; color: #888; padding: 8px 2px; font-size: 0.8em; margin: 0; }
+        .env-btn { border-color: #555; color: #888; padding: 8px 2px; font-size: 0.8em; margin: 0; transition: all 0.2s; }
         
-        /* 針對不同狀態配置專屬啟動顏色 */
         .env-btn.active[data-status="安全"] { background: #00ffaa; border-color: #00ffaa; color: #000; box-shadow: 0 0 8px #00ffaa;}
         .env-btn.active[data-status="警戒"] { background: #ffcc00; border-color: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00;}
         .env-btn.active[data-status="車輛不通"] { background: #ff5500; border-color: #ff5500; color: #fff; box-shadow: 0 0 8px #ff5500;}
         .env-btn.active[data-status="有傷患"] { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 8px #ff0055;}
         .env-btn.active[data-status="前往集合"] { background: #0088ff; border-color: #0088ff; color: #fff; box-shadow: 0 0 8px #0088ff;}
         .env-btn.active[data-status="路坍"] { background: #995522; border-color: #995522; color: #fff; box-shadow: 0 0 8px #995522;}
+
+        /* 🔮 新增：備註輸入框樣式 */
+        .remark-input { flex: 1; background: #000; color: #ffaa00; border: 1px solid #047a80; padding: 8px; border-radius: 3px; outline: none; }
+        .remark-input::placeholder { color: #555; }
     </style>
 </head>
 <body>
 <div class="container">
     <h2 style="margin-top:0;">通報終端</h2>
     <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
-    <div class="data-panel" id="statusPanel">狀態：待命<br>緯度：--<br>經度：--</div>
+    
+    <!-- 🔮 修改：同行顯示 -->
+    <div class="data-panel" id="statusPanel">狀態：待命 | 座標：-- | 電量：--</div>
     
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button><br>
     
     <div id="controlPanel" style="display:none; margin-top:10px;">
-        <!-- 🚨 原有緊急與呼叫區塊 -->
         <div style="margin-bottom: 15px;">
             <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
             <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
         </div>
         
-        <!-- 🔮 新增：現場環境狀態區塊 -->
         <div style="border-top: 1px dashed #047a80; padding-top: 10px;">
-            <div style="font-size:0.85em; color:#00f3ff; margin-bottom:5px;">現場環境回報 (點擊切換)</div>
+            <div style="font-size:0.85em; color:#00f3ff; margin-bottom:5px;">現場環境回報 (可多選)</div>
             <div class="env-grid">
                 <button class="env-btn" data-status="安全">安全</button>
                 <button class="env-btn" data-status="警戒">警戒</button>
@@ -53,6 +58,12 @@
                 <button class="env-btn" data-status="有傷患">有傷患</button>
                 <button class="env-btn" data-status="前往集合">去集合</button>
                 <button class="env-btn" data-status="路坍">路坍</button>
+            </div>
+            
+            <!-- 🔮 新增：環境備註輸入區 -->
+            <div style="display:flex; margin-top:8px; gap:5px;">
+                <input type="text" id="remarkInput" class="remark-input" placeholder="輸入現場備註情況...">
+                <button id="remarkBtn" style="margin:0; padding:5px 15px; font-size:0.85em; color:#ffaa00; border-color:#ffaa00;">送出</button>
             </div>
         </div>
     </div>
@@ -74,12 +85,13 @@
         userId: document.getElementById('userId'), status: document.getElementById('statusPanel'),
         start: document.getElementById('startBtn'), stop: document.getElementById('stopBtn'),
         ctrl: document.getElementById('controlPanel'), nav: document.getElementById('navBtn'),
-        snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio')
+        snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio'),
+        remarkInput: document.getElementById('remarkInput'), remarkBtn: document.getElementById('remarkBtn')
     };
 
     let watchId = null, lastHistoryTime = 0, wakeLock = null;
     let batteryInfo = null; 
-    let currentEnvStatus = ""; // 🔮 新增：用來記錄當前選擇的環境狀態
+    let currentEnvStatus = new Set(); // 🔮 修改：改用 Set 支援多選
 
     if ('getBattery' in navigator) {
         navigator.getBattery().then(bat => {
@@ -96,30 +108,39 @@
         }
     }
 
-    // 🔮 新增：環境狀態按鈕點擊邏輯 (Toggle切換)
+    // 🔮 修改：環境狀態按鈕多選切換邏輯
     document.querySelectorAll('.env-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const status = e.target.getAttribute('data-status');
             
-            // 如果點擊的是原本已經啟動的狀態，則取消它；否則切換為新狀態
-            if (currentEnvStatus === status) {
-                currentEnvStatus = ""; 
+            if (currentEnvStatus.has(status)) {
+                currentEnvStatus.delete(status);
+                e.target.classList.remove('active');
             } else {
-                currentEnvStatus = status;
-            }
-
-            // 更新 UI 按鈕外觀
-            document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
-            if (currentEnvStatus) {
+                currentEnvStatus.add(status);
                 e.target.classList.add('active');
             }
 
-            // 將狀態即時寫入 Firebase
             const uid = ui.userId.value.trim();
             if (uid) {
-                update(ref(db, `tracking/users/${uid}`), { envStatus: currentEnvStatus });
+                // 將 Set 轉為陣列，再用逗號連接存入 Firebase
+                update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') });
             }
         });
+    });
+
+    // 🔮 新增：備註送出邏輯
+    ui.remarkBtn.addEventListener('click', () => {
+        const uid = ui.userId.value.trim();
+        const text = ui.remarkInput.value.trim();
+        if (uid) {
+            update(ref(db, `tracking/users/${uid}`), { envRemark: text });
+            
+            // UI 反饋
+            const origText = ui.remarkBtn.innerText;
+            ui.remarkBtn.innerText = "✅";
+            setTimeout(() => ui.remarkBtn.innerText = origText, 1500);
+        }
     });
 
     ui.start.addEventListener('click', async () => {
@@ -137,14 +158,14 @@
             const { latitude, longitude } = pos.coords;
             const now = Date.now();
             
-            let statusHtml = `狀態：傳輸中<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}`;
-            if (batteryInfo) statusHtml += `<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
+            // 🔮 修改：單行狀態顯示
+            let statusHtml = `傳輸中 | 座標: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            if (batteryInfo) statusHtml += ` | 🔋${batteryInfo.level}%${batteryInfo.charging ? '⚡' : ''}`;
             ui.status.innerHTML = statusHtml;
             
             let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
             if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
             
-            // 由於使用 update，若目前有環境狀態，不會被蓋掉
             update(ref(db, `tracking/users/${uid}`), payload);
             
             if (now - lastHistoryTime > 60000) {
@@ -162,11 +183,12 @@
         ui.silent.pause();
         ui.start.style.display = 'inline-block'; ui.stop.style.display = 'none'; ui.ctrl.style.display = 'none'; ui.nav.style.display = 'none';
         
-        // 離線時，同時清空環境狀態按鈕 UI 與數值
-        currentEnvStatus = "";
+        // 離線時清空多選與備註
+        currentEnvStatus.clear();
         document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
+        ui.remarkInput.value = '';
         
-        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "" });
+        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "", envRemark: "" });
     });
 
     document.getElementById('warnBtn').onclick = () => {

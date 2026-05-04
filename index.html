@@ -6,10 +6,9 @@
     <title>災防通報系統 - 手機端</title>
     <style>
         body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s ease; }
-        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 25px; width: 90%; max-width: 400px; text-align: center; }
+        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 20px; width: 90%; max-width: 400px; text-align: center; max-height: 95vh; overflow-y: auto; }
         
-        /* 🔮 修改：資料面板改為單行顯示，文字縮小一點 */
-        .data-panel { background: #000; border: 1px solid #047a80; padding: 10px; margin: 15px 0; border-radius: 5px; font-family: monospace; font-size: 0.85em; }
+        .data-panel { background: #000; border: 1px solid #047a80; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; font-size: 0.85em; }
         
         button { background: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         button:hover { background: #00f3ff; color: #000; }
@@ -19,7 +18,6 @@
         
         .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
         .env-btn { border-color: #555; color: #888; padding: 8px 2px; font-size: 0.8em; margin: 0; transition: all 0.2s; }
-        
         .env-btn.active[data-status="安全"] { background: #00ffaa; border-color: #00ffaa; color: #000; box-shadow: 0 0 8px #00ffaa;}
         .env-btn.active[data-status="警戒"] { background: #ffcc00; border-color: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00;}
         .env-btn.active[data-status="車輛不通"] { background: #ff5500; border-color: #ff5500; color: #fff; box-shadow: 0 0 8px #ff5500;}
@@ -27,9 +25,12 @@
         .env-btn.active[data-status="前往集合"] { background: #0088ff; border-color: #0088ff; color: #fff; box-shadow: 0 0 8px #0088ff;}
         .env-btn.active[data-status="路坍"] { background: #995522; border-color: #995522; color: #fff; box-shadow: 0 0 8px #995522;}
 
-        /* 🔮 新增：備註輸入框樣式 */
         .remark-input { flex: 1; background: #000; color: #ffaa00; border: 1px solid #047a80; padding: 8px; border-radius: 3px; outline: none; }
         .remark-input::placeholder { color: #555; }
+
+        /* 🔮 新增：照片預覽區塊樣式 */
+        .photo-preview-container { display: flex; gap: 5px; margin-top: 10px; overflow-x: auto; padding-bottom: 5px;}
+        .preview-img { height: 60px; border-radius: 5px; border: 1px solid #00ffaa; object-fit: cover; }
     </style>
 </head>
 <body>
@@ -37,14 +38,13 @@
     <h2 style="margin-top:0;">通報終端</h2>
     <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
     
-    <!-- 🔮 修改：同行顯示 -->
     <div class="data-panel" id="statusPanel">狀態：待命 | 座標：-- | 電量：--</div>
     
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button><br>
     
     <div id="controlPanel" style="display:none; margin-top:10px;">
-        <div style="margin-bottom: 15px;">
+        <div style="margin-bottom: 10px;">
             <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
             <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
         </div>
@@ -60,11 +60,17 @@
                 <button class="env-btn" data-status="路坍">路坍</button>
             </div>
             
-            <!-- 🔮 新增：環境備註輸入區 -->
             <div style="display:flex; margin-top:8px; gap:5px;">
                 <input type="text" id="remarkInput" class="remark-input" placeholder="輸入現場備註情況...">
                 <button id="remarkBtn" style="margin:0; padding:5px 15px; font-size:0.85em; color:#ffaa00; border-color:#ffaa00;">送出</button>
             </div>
+        </div>
+
+        <!-- 🔮 新增：現場照片拍攝區塊 -->
+        <div style="border-top: 1px dashed #047a80; padding-top: 10px; margin-top: 10px;">
+            <input type="file" id="photoInput" accept="image/*" multiple style="display:none;">
+            <button id="photoBtn" style="border-color:#00ffaa; color:#00ffaa; width:100%; margin:0;">📸 拍攝或選擇照片 (最多3張)</button>
+            <div id="photoPreview" class="photo-preview-container"></div>
         </div>
     </div>
     
@@ -86,12 +92,15 @@
         start: document.getElementById('startBtn'), stop: document.getElementById('stopBtn'),
         ctrl: document.getElementById('controlPanel'), nav: document.getElementById('navBtn'),
         snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio'),
-        remarkInput: document.getElementById('remarkInput'), remarkBtn: document.getElementById('remarkBtn')
+        remarkInput: document.getElementById('remarkInput'), remarkBtn: document.getElementById('remarkBtn'),
+        photoInput: document.getElementById('photoInput'), photoBtn: document.getElementById('photoBtn'),
+        photoPreview: document.getElementById('photoPreview')
     };
 
     let watchId = null, lastHistoryTime = 0, wakeLock = null;
     let batteryInfo = null; 
-    let currentEnvStatus = new Set(); // 🔮 修改：改用 Set 支援多選
+    let currentEnvStatus = new Set(); 
+    let currentPhotos = []; // 🔮 新增：儲存壓縮後的照片 Base64 字串
 
     if ('getBattery' in navigator) {
         navigator.getBattery().then(bat => {
@@ -103,43 +112,90 @@
     }
 
     async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
-        }
+        if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
     }
 
-    // 🔮 修改：環境狀態按鈕多選切換邏輯
+    // 🔮 新增：照片選擇與壓縮處理邏輯
+    ui.photoBtn.addEventListener('click', () => ui.photoInput.click());
+
+    ui.photoInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files).slice(0, 3); // 限制最多處理 3 張
+        if (files.length === 0) return;
+        
+        ui.photoBtn.innerText = "⏳ 處理中...";
+        currentPhotos = [];
+        ui.photoPreview.innerHTML = '';
+        
+        for (let file of files) {
+            const base64 = await compressImage(file);
+            currentPhotos.push(base64);
+            
+            const img = document.createElement('img');
+            img.src = base64;
+            img.className = 'preview-img';
+            ui.photoPreview.appendChild(img);
+        }
+        ui.photoBtn.innerText = `📸 已上傳 ${currentPhotos.length} 張照片 (點擊重拍)`;
+
+        // 立刻將照片同步到 Firebase
+        const uid = ui.userId.value.trim();
+        if (uid && watchId) {
+            update(ref(db, `tracking/users/${uid}`), { images: currentPhotos });
+        }
+    });
+
+    // 🔮 新增：畫布壓縮圖片函數 (將照片縮小至最大 800px，品質 60%，避免塞爆資料庫)
+    function compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_SIZE = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height && width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // 環境狀態切換
     document.querySelectorAll('.env-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const status = e.target.getAttribute('data-status');
-            
-            if (currentEnvStatus.has(status)) {
-                currentEnvStatus.delete(status);
-                e.target.classList.remove('active');
-            } else {
-                currentEnvStatus.add(status);
-                e.target.classList.add('active');
-            }
+            if (currentEnvStatus.has(status)) { currentEnvStatus.delete(status); e.target.classList.remove('active'); } 
+            else { currentEnvStatus.add(status); e.target.classList.add('active'); }
 
             const uid = ui.userId.value.trim();
-            if (uid) {
-                // 將 Set 轉為陣列，再用逗號連接存入 Firebase
-                update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') });
-            }
+            if (uid) update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') });
         });
     });
 
-    // 🔮 新增：備註送出邏輯
+    // 備註送出
     ui.remarkBtn.addEventListener('click', () => {
         const uid = ui.userId.value.trim();
         const text = ui.remarkInput.value.trim();
         if (uid) {
             update(ref(db, `tracking/users/${uid}`), { envRemark: text });
-            
-            // UI 反饋
             const origText = ui.remarkBtn.innerText;
-            ui.remarkBtn.innerText = "✅";
-            setTimeout(() => ui.remarkBtn.innerText = origText, 1500);
+            ui.remarkBtn.innerText = "✅"; setTimeout(() => ui.remarkBtn.innerText = origText, 1500);
         }
     });
 
@@ -158,13 +214,13 @@
             const { latitude, longitude } = pos.coords;
             const now = Date.now();
             
-            // 🔮 修改：單行狀態顯示
             let statusHtml = `傳輸中 | 座標: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
             if (batteryInfo) statusHtml += ` | 🔋${batteryInfo.level}%${batteryInfo.charging ? '⚡' : ''}`;
             ui.status.innerHTML = statusHtml;
             
             let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
             if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
+            if (currentPhotos.length > 0) { payload.images = currentPhotos; } // 送出位置時一併夾帶照片
             
             update(ref(db, `tracking/users/${uid}`), payload);
             
@@ -183,12 +239,15 @@
         ui.silent.pause();
         ui.start.style.display = 'inline-block'; ui.stop.style.display = 'none'; ui.ctrl.style.display = 'none'; ui.nav.style.display = 'none';
         
-        // 離線時清空多選與備註
         currentEnvStatus.clear();
+        currentPhotos = []; // 清空照片陣列
+        ui.photoPreview.innerHTML = ''; // 清空照片縮圖
+        ui.photoBtn.innerText = "📸 拍攝或選擇照片 (最多3張)";
         document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
         ui.remarkInput.value = '';
         
-        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "", envRemark: "" });
+        // 離線時也把雲端的照片欄位清空
+        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "", envRemark: "", images: null });
     });
 
     document.getElementById('warnBtn').onclick = () => {

@@ -40,23 +40,27 @@
         .battery-badge { font-size: 0.8em; padding: 1px 5px; border-radius: 3px; border: 1px solid #00f3ff; margin-left: auto; }
         .battery-low { border-color: #ff0055; color: #ff0055; animation: blinkFast 1s infinite alternate; }
 
-        .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 5px; }
-        .action-btn { background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 4px 0; cursor: pointer; border-radius: 3px; text-align: center; }
+        /* 🔮 修改：改用 Flexbox 以靈活適應 4 顆或 5 顆按鈕 */
+        .action-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .action-btn { flex: 1 1 18%; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 4px 0; cursor: pointer; border-radius: 3px; text-align: center; white-space: nowrap; }
         .btn-alert { border-color: #ff0055; color: #ff0055; }
         .btn-call { border-color: #ffcc00; color: #ffcc00; }
         .btn-path { border-color: #00ffaa; color: #00ffaa; }
         .btn-off { border-color: #888; color: #888; }
+        .btn-photo { border-color: #00aaff; color: #00aaff; } /* 照片按鈕專用顏色 */
         
-        /* 🔮 新增：備註框樣式 (單行截斷與展開) */
-        .remark-box { 
-            margin-top: 5px; font-size: 0.85em; color: #ffaa00; background: rgba(255, 170, 0, 0.1); 
-            padding: 4px 8px; border-radius: 3px; border-left: 2px solid #ffaa00; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease;
-        }
+        .remark-box { margin-top: 5px; font-size: 0.85em; color: #ffaa00; background: rgba(255, 170, 0, 0.1); padding: 4px 8px; border-radius: 3px; border-left: 2px solid #ffaa00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
         .remark-box.expanded { white-space: normal; word-break: break-all; }
 
         #log-panel { height: 100px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
         input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 5px; cursor: pointer; }
+
+        /* 🔮 新增：彈出式照片檢視窗 (Modal) */
+        #photoModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
+        #photoModal .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 5px; font-size: 1.1em;}
+        #photoModal .close-btn:hover { background: #ff0055; color: #fff; }
+        #modalGallery { display: flex; gap: 15px; max-width: 90vw; overflow-x: auto; padding: 20px; align-items: center;}
+        #modalGallery img { max-height: 80vh; max-width: 85vw; object-fit: contain; border: 2px solid #00f3ff; border-radius: 8px; box-shadow: 0 0 20px rgba(0, 243, 255, 0.3); }
     </style>
 </head>
 <body>
@@ -76,6 +80,12 @@
     <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
+<!-- 🔮 新增：彈出照片視窗 -->
+<div id="photoModal">
+    <button class="close-btn" onclick="closePhotoModal()">關閉 (X)</button>
+    <div id="modalGallery"></div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -93,6 +103,9 @@
     const activeTrackers = new Set(); 
     let knownUsers = new Set();       
     const markers = {}, polylines = {}, hListeners = {};
+    
+    // 🔮 新增：全域照片暫存庫，供 Modal 讀取
+    window.globalPhotos = {}; 
 
     map.on('click', e => {
         plannedPath.push([e.latlng.lat, e.latlng.lng]);
@@ -173,7 +186,6 @@
         const nameClass = u.isAlarm ? 'flash-name' : '';
         const crTag = u.needCR ? `<span class="cr-tag">支援CR</span>` : '';
         
-        // 🔮 解析多重環境標籤 (陣列字串拆解)
         let envTagHtml = '';
         if (u.envStatus) {
             const statuses = u.envStatus.split(',');
@@ -198,11 +210,16 @@
             batteryHTML = `<span class="battery-badge ${batClass}">🔋${u.battery}% ${u.charging ? '⚡' : ''}</span>`;
         }
         
-        // 🔮 備註訊息框
         let remarkHtml = '';
         if (u.envRemark) {
-            // 點擊切換 .expanded 類別以展開或收合
             remarkHtml = `<div class="remark-box" onclick="this.classList.toggle('expanded')" title="點擊展開/收合">📝 備註：${u.envRemark}</div>`;
+        }
+
+        // 🔮 照片按鈕動態產生
+        let photoBtnHtml = '';
+        if (u.images && u.images.length > 0) {
+            window.globalPhotos[uid] = u.images; // 存入全域，方便 modal 呼叫
+            photoBtnHtml = `<button class="action-btn btn-photo" onclick="showPhotoModal('${uid}')">📸 照片(${u.images.length})</button>`;
         }
 
         div.innerHTML = `
@@ -219,6 +236,7 @@
                 <button class="action-btn btn-call" onclick="sendCmd('${uid}', 'targeted_cr')">呼叫</button>
                 <button class="action-btn btn-path" onclick="sendPath('${uid}')">路徑</button>
                 <button class="action-btn btn-off" onclick="forceOff('${uid}')">離線</button>
+                ${photoBtnHtml}
             </div>
             ${remarkHtml}`;
             
@@ -266,6 +284,20 @@
         if (polylines[uid]) { map.removeLayer(polylines[uid]); delete polylines[uid]; }
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
     }
+
+    // 🔮 照片 Modal 控制函數
+    window.showPhotoModal = (uid) => {
+        const photos = window.globalPhotos[uid];
+        if (!photos) return;
+        const gallery = document.getElementById('modalGallery');
+        gallery.innerHTML = photos.map(src => `<img src="${src}">`).join('');
+        document.getElementById('photoModal').style.display = 'flex';
+    };
+    
+    window.closePhotoModal = () => {
+        document.getElementById('photoModal').style.display = 'none';
+        document.getElementById('modalGallery').innerHTML = '';
+    };
 
     window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`已向 ${uid} 發送指令`); };
     window.sendPath = uid => {

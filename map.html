@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>災防通報：指揮中心戰情儀表板</title>
+    
+    <!-- 引入 Leaflet.js 的 CSS 與 JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* Tron Style 戰情室 UI */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0a0a;
+            color: #00f3ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 左側地圖區塊 */
+        #map-container {
+            flex: 3;
+            position: relative;
+            border-right: 2px solid #00f3ff;
+            box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2);
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        /* 右側資訊面板區塊 */
+        #sidebar {
+            flex: 1;
+            background: rgba(0, 20, 30, 0.95);
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            min-width: 300px;
+        }
+        
+        h2 {
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid #047a80;
+            padding-bottom: 10px;
+            margin-top: 0;
+            text-align: center;
+        }
+
+        /* 動態人員列表卡片 */
+        .user-card {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #047a80;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        .user-card:hover {
+            border-color: #00f3ff;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+        }
+        .user-card.offline {
+            border-color: #555;
+            color: #888;
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #00f3ff;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #00f3ff;
+        }
+        .offline .status-dot {
+            background-color: #555;
+            box-shadow: none;
+        }
+        
+        .data-label { font-size: 0.85em; color: #047a80; }
+        .data-value { font-family: monospace; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+    
+    <div id="sidebar">
+        <h2>即時動態監控 (Analysis)</h2>
+        <div id="user-list">
+            <!-- JavaScript 會動態將人員資訊插入這裡 -->
+            <div style="text-align:center; color:#047a80;">等待資料連線中...</div>
+        </div>
+    </div>
+
+    <!-- 模組化載入 Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { firebaseConfig } from './firebase-config.js'; // 共用同一份設定檔
+
+        // 1. 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // 2. 初始化 Leaflet 地圖 (以台灣為中心)
+        const map = L.map('map').setView([23.6978, 120.9605], 7);
+
+        // 使用 CartoDB 的 Dark Matter 暗色系圖資，完美契合 Tron 風格
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // 儲存地圖上的標記物件
+        const markers = {};
+        const userListDiv = document.getElementById('user-list');
+
+        // 3. 監聽 Firebase 資料庫變化
+        const usersRef = ref(db, 'tracking/users');
+        
+        onValue(usersRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            let listHTML = '';
+
+            // 迴圈處理每一個使用者的資料
+            for (const uid in data) {
+                const user = data[uid];
+                const lat = user.lat;
+                const lng = user.lng;
+                const isActive = user.status === 'active';
+                const timeString = new Date(user.timestamp).toLocaleTimeString();
+
+                // 更新右側面板的 HTML
+                listHTML += `
+                    <div class="user-card ${isActive ? '' : 'offline'}">
+                        <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">
+                            <span class="status-dot"></span>${uid}
+                        </div>
+                        <div><span class="data-label">狀態:</span> <span class="data-value">${user.status.toUpperCase()}</span></div>
+                        <div><span class="data-label">座標:</span> <span class="data-value">${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+                        <div><span class="data-label">更新:</span> <span class="data-value">${timeString}</span></div>
+                    </div>
+                `;
+
+                // 更新地圖上的標記 (Marker)
+                if (isActive) {
+                    if (markers[uid]) {
+                        // 如果標記已存在，更新位置
+                        markers[uid].setLatLng([lat, lng]);
+                        markers[uid].bindPopup(`<b>${uid}</b><br>更新時間: ${timeString}`);
+                    } else {
+                        // 建立新的標記
+                        // 這裡可以使用自訂的科技感 icon，目前先用預設加上 Tron 色調的圓形
+                        const tronIcon = L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style="background-color:#00f3ff; width:12px; height:12px; border-radius:50%; box-shadow: 0 0 10px #00f3ff;"></div>`,
+                            iconSize: [12, 12],
+                            iconAnchor: [6, 6]
+                        });
+
+                        markers[uid] = L.marker([lat, lng], {icon: tronIcon}).addTo(map);
+                        markers[uid].bindPopup(`<b>${uid}</b><br>更新時間: ${timeString}`);
+                    }
+                } else {
+                    // 如果狀態變為 offline，將地圖上的標記移除
+                    if (markers[uid]) {
+                        map.removeLayer(markers[uid]);
+                        delete markers[uid];
+                    }
+                }
+            }
+
+            userListDiv.innerHTML = listHTML;
+        });
+
+    </script>
+</body>
+</html>

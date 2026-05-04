@@ -5,56 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>災防通報：即時軌跡與音訊警報系統</title>
     <style>
-        body {
-            background-color: #0a0a0a;
-            color: #00f3ff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background: rgba(0, 20, 30, 0.8);
-            border: 2px solid #00f3ff;
-            border-radius: 10px;
-            box-shadow: 0 0 15px #00f3ff, inset 0 0 10px #00f3ff;
-            padding: 30px;
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
-        }
+        body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff, inset 0 0 10px #00f3ff; padding: 30px; width: 90%; max-width: 400px; text-align: center; }
         h2 { text-transform: uppercase; letter-spacing: 2px; }
-        .data-panel {
-            background: #000;
-            border: 1px solid #047a80;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
-            font-family: monospace;
-            color: #fff;
-            text-align: left;
-            word-wrap: break-word;
-        }
-        button {
-            background-color: transparent;
-            color: #00f3ff;
-            border: 1px solid #00f3ff;
-            padding: 10px 20px;
-            margin: 10px 5px;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 5px;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
+        .data-panel { background: #000; border: 1px solid #047a80; padding: 15px; margin: 20px 0; border-radius: 5px; font-family: monospace; color: #fff; text-align: left; word-wrap: break-word; }
+        button { background-color: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 20px; margin: 10px 5px; font-size: 16px; cursor: pointer; border-radius: 5px; transition: all 0.3s ease; text-transform: uppercase; }
         button:hover { background-color: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
         .warning-btn { border-color: #ff0055; color: #ff0055; }
         .warning-btn:hover { background-color: #ff0055; color: #fff; box-shadow: 0 0 10px #ff0055; }
         .cr-btn { border-color: #ffcc00; color: #ffcc00; }
         .cr-btn:hover { background-color: #ffcc00; color: #000; box-shadow: 0 0 10px #ffcc00; }
+        
+        /* 🔮 新增：導航按鈕樣式 (綠色科技風) */
+        .nav-btn {
+            display: block; width: calc(100% - 10px); box-sizing: border-box; text-align: center; margin: 15px auto 0;
+            border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; 
+            font-weight: bold; background: rgba(0, 255, 170, 0.1); transition: all 0.3s ease; font-size: 1.1em;
+        }
+        .nav-btn:hover { background: #00ffaa; color: #000; box-shadow: 0 0 15px #00ffaa; }
     </style>
 </head>
 <body>
@@ -66,15 +34,19 @@
     <div class="data-panel" id="statusPanel">
         系統狀態：待命中...<br>
         緯度：--<br>
-        經度：--
+        經度：--<br>
+        電量：--
     </div>
 
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button>
     <br>
-    <button id="warnBtn" class="warning-btn">🚨 發送緊急警報</button>
-    <button id="crBtn" class="cr-btn">🔊 請支援 CR</button>
+    <button id="warnBtn" class="warning-btn">🚨 緊急警報</button>
+    <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
     
+    <!-- 🔮 新增：隱藏的導航按鈕 -->
+    <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航前往集合點</a>
+
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
@@ -92,31 +64,34 @@
     const stopBtn = document.getElementById('stopBtn');
     const warnBtn = document.getElementById('warnBtn');
     const crBtn = document.getElementById('crBtn');
+    const navBtn = document.getElementById('navBtn');
     const alertSound = document.getElementById('alertSound');
 
     let watchId = null;
-    let lastHistoryTime = 0; // 軌跡紀錄的時間點控制
+    let lastHistoryTime = 0;
+    
+    let batteryInfo = { level: 'N/A', charging: false };
+    if ('getBattery' in navigator) {
+        navigator.getBattery().then(battery => {
+            batteryInfo.level = Math.round(battery.level * 100);
+            batteryInfo.charging = battery.charging;
+            battery.addEventListener('levelchange', () => { batteryInfo.level = Math.round(battery.level * 100); });
+            battery.addEventListener('chargingchange', () => { batteryInfo.charging = battery.charging; });
+        });
+    }
 
-    // 啟動追蹤
     startBtn.addEventListener('click', () => {
         const uid = userIdInput.value.trim();
         if (!uid) return alert('請輸入使用者 ID');
         if (!navigator.geolocation) return alert('您的設備不支援地理定位');
 
-        // 解鎖瀏覽器音效限制
         alertSound.volume = 0.01;
-        alertSound.play().then(() => {
-            alertSound.pause();
-            alertSound.currentTime = 0;
-            alertSound.volume = 1; 
-        }).catch(e => console.log("音效解鎖失敗", e));
-
-        const unlockUtterance = new SpeechSynthesisUtterance('');
-        window.speechSynthesis.speak(unlockUtterance);
+        alertSound.play().then(() => { alertSound.pause(); alertSound.currentTime = 0; alertSound.volume = 1; }).catch(e => console.log("音效解鎖失敗"));
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
 
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
-        lastHistoryTime = 0; // 重置軌跡計時
+        lastHistoryTime = 0;
         
         watchId = navigator.geolocation.watchPosition(
             (position) => {
@@ -124,19 +99,16 @@
                 const currentTime = Date.now();
                 const timestamp = new Date().toISOString();
                 
-                statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m`;
+                statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
 
-                // 1. 更新即時單點狀態
                 set(ref(db, `tracking/users/${uid}`), {
-                    lat: latitude, lng: longitude, timestamp: timestamp, status: "active"
+                    lat: latitude, lng: longitude, timestamp: timestamp, status: "active",
+                    battery: batteryInfo.level, charging: batteryInfo.charging
                 });
 
-                // 2. 歷史軌跡節流 (每 30 秒才記錄一個點，避免過度密集)
                 if (currentTime - lastHistoryTime > 30000) {
                     lastHistoryTime = currentTime;
-                    set(ref(db, `tracking/history/${uid}/${currentTime}`), {
-                        lat: latitude, lng: longitude
-                    });
+                    set(ref(db, `tracking/history/${uid}/${currentTime}`), { lat: latitude, lng: longitude });
                 }
             },
             (error) => { statusPanel.innerHTML = `錯誤：${error.message}`; },
@@ -146,76 +118,66 @@
         listenForWarnings(uid);
     });
 
-    // 停止追蹤 (可由使用者手動點擊，或被指揮中心強制觸發)
     stopBtn.addEventListener('click', () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         startBtn.style.display = 'inline-block';
         stopBtn.style.display = 'none';
-        statusPanel.innerHTML = `系統狀態：已停止<br>緯度：--<br>經度：--`;
-        
-        const uid = userIdInput.value.trim();
-        update(ref(db, `tracking/users/${uid}`), { status: "offline" });
+        navBtn.style.display = 'none'; // 離線時隱藏導航
+        statusPanel.innerHTML = `系統狀態：已停止<br>緯度：--<br>經度：--<br>電量：--`;
+        update(ref(db, `tracking/users/${userIdInput.value.trim()}`), { status: "offline" });
     });
 
-    warnBtn.addEventListener('click', () => {
-        set(ref(db, `tracking/alerts/global`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
-        statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送緊急警告訊號！</span>`;
-    });
-
-    crBtn.addEventListener('click', () => {
-        set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
-        statusPanel.innerHTML += `<br><span style="color:#ffcc00">已發送「請支援 CR」廣播！</span>`;
-    });
+    warnBtn.addEventListener('click', () => { set(ref(db, `tracking/alerts/global`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() }); });
+    crBtn.addEventListener('click', () => { set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() }); });
 
     function listenForWarnings(currentUid) {
-        // 監聽全局緊急警告
-        const alertRef = ref(db, 'tracking/alerts/global');
-        let initialLoadAlert = true;
-        onValue(alertRef, (snapshot) => {
+        // 監聽全局警告
+        onValue(ref(db, 'tracking/alerts/global'), (snapshot) => {
             const data = snapshot.val();
-            if (initialLoadAlert) { initialLoadAlert = false; return; }
-            if (data && data.triggerBy !== currentUid) {
+            if (data && data.timestamp > Date.now() - 5000 && data.triggerBy !== currentUid) {
                 alertSound.play();
                 document.body.style.backgroundColor = '#500';
                 setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
-                statusPanel.innerHTML += `<br><span style="color:#ff0055">收到來自 ${data.triggerBy} 的警告！</span>`;
             }
         });
 
-        // 監聽指揮中心的「專屬 CR 呼叫」
-        const myCrRef = ref(db, `tracking/alerts/targeted_cr/${currentUid}`);
-        let initialLoadMyCr = true;
-        onValue(myCrRef, (snapshot) => {
+        // 監聽 CR 呼叫
+        onValue(ref(db, `tracking/alerts/targeted_cr/${currentUid}`), (snapshot) => {
             const data = snapshot.val();
-            if (initialLoadMyCr) { initialLoadMyCr = false; return; }
-            if (data) {
+            if (data && data.timestamp > Date.now() - 5000) {
                 const utterance = new SpeechSynthesisUtterance('指揮中心呼叫，請支援、吸、阿');
-                utterance.lang = 'zh-TW'; utterance.rate = 1.1;
-                window.speechSynthesis.speak(utterance);
-                
-                document.body.style.backgroundColor = '#665000';
-                setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
-                statusPanel.innerHTML += `<br><span style="color:#ffcc00; font-weight:bold;">收到指揮中心專屬指令：請支援 CR！</span>`;
+                utterance.lang = 'zh-TW'; utterance.rate = 1.1; window.speechSynthesis.speak(utterance);
+                document.body.style.backgroundColor = '#665000'; setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
             }
         });
 
-        // 🔮 新增：監聽指揮中心的「強制離線」指令
-        const offlineCmdRef = ref(db, `tracking/commands/${currentUid}/force_offline`);
-        let initialLoadOffline = true;
-        onValue(offlineCmdRef, (snapshot) => {
+        // 監聽強制離線
+        onValue(ref(db, `tracking/commands/${currentUid}/force_offline`), (snapshot) => {
             const data = snapshot.val();
-            if (initialLoadOffline) { initialLoadOffline = false; return; }
-            if (data) {
-                // 自動觸發停止追蹤按鈕
+            if (data && data.timestamp > Date.now() - 5000) {
                 stopBtn.click();
-                
                 const utterance = new SpeechSynthesisUtterance('指揮中心已強制關閉您的通報系統');
-                utterance.lang = 'zh-TW'; 
-                window.speechSynthesis.speak(utterance);
+                utterance.lang = 'zh-TW'; window.speechSynthesis.speak(utterance);
+            }
+        });
+
+        // 🔮 新增：監聽指揮中心派發的「集合點導航」
+        onValue(ref(db, `tracking/commands/${currentUid}/rally_point`), (snapshot) => {
+            const data = snapshot.val();
+            // 確保只處理 5 秒內發出的新指令，避免重整網頁時跳出舊通知
+            if (data && data.timestamp > Date.now() - 5000) {
+                // 產生 Google Maps 導航網址 (起點為當前位置，終點為指定座標)
+                const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`;
+                navBtn.href = mapUrl;
+                navBtn.style.display = 'block';
+
+                const utterance = new SpeechSynthesisUtterance('指揮中心派發新集合點，請點擊螢幕開啟導航前往');
+                utterance.lang = 'zh-TW'; utterance.rate = 1.1; window.speechSynthesis.speak(utterance);
                 
-                document.body.style.backgroundColor = '#550000';
+                document.body.style.backgroundColor = '#003322'; // 暗綠色
                 setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
-                statusPanel.innerHTML += `<br><span style="color:#ff0055; font-weight:bold;">⚠️ 您已被指揮中心強制離線！</span>`;
+                
+                statusPanel.innerHTML += `<br><span style="color:#00ffaa; font-weight:bold;">📍 收到集合指令！請點擊按鈕開啟導航。</span>`;
             }
         });
     }

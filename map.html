@@ -10,33 +10,46 @@
 
     <style>
         body { margin: 0; padding: 0; background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        #map-container { flex: 3; position: relative; border-right: 2px solid #00f3ff; box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2); background: #000; }
+        #map-container { flex: 3; position: relative; border-right: 2px solid #00f3ff; box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2); background: #000; cursor: crosshair; }
         #map { width: 100%; height: 100%; background: #000; }
         .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
-        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; min-width: 350px; }
+        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; min-width: 360px; }
         h2 { text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #047a80; padding-bottom: 10px; margin-top: 0; text-align: center; flex-shrink: 0; }
-        #user-list { flex-grow: 1; overflow-y: auto; margin-bottom: 20px; padding-right: 5px;}
+        
+        /* 🔮 新增：頂部狀態列，提示目前選擇的集合點 */
+        #rally-info { text-align: center; color: #00ffaa; font-size: 0.9em; padding: 10px 0; border-bottom: 1px dashed #047a80; margin-bottom: 10px; }
+
+        #user-list { flex-grow: 1; overflow-y: auto; margin-bottom: 20px; padding-right: 5px; }
         
         .user-card { background: rgba(0, 0, 0, 0.6); border: 1px solid #047a80; border-radius: 5px; padding: 15px; margin-bottom: 15px; transition: all 0.3s ease; }
         .user-card:hover { border-color: #00f3ff; box-shadow: 0 0 10px rgba(0, 243, 255, 0.5); }
-        .user-card.offline { border-color: #555; color: #888; }
+        .battery-badge { float: right; font-size: 0.85em; padding: 2px 8px; border-radius: 4px; background: #047a80; color: #fff; border: 1px solid #00f3ff; }
+        .battery-low { background: rgba(255, 0, 85, 0.2); border-color: #ff0055; color: #ff0055; animation: blink 1s infinite alternate; }
+        @keyframes blink { from { box-shadow: 0 0 2px #ff0055; } to { box-shadow: 0 0 10px #ff0055; } }
+
+        .user-card.offline { padding: 8px 15px; margin-bottom: 8px; border-color: #333; background: rgba(0,0,0,0.3); display: flex; justify-content: space-between; align-items: center; }
+        .user-card.offline .card-body { display: none; }
+        .user-card.offline .status-dot { background-color: #555; box-shadow: none; margin-right: 5px; }
+        .user-card.offline .offline-text { font-size: 0.8em; color: #888; font-family: monospace;}
         
         .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #00f3ff; margin-right: 8px; box-shadow: 0 0 8px #00f3ff; }
-        .offline .status-dot { background-color: #555; box-shadow: none; }
         .data-label { font-size: 0.85em; color: #047a80; }
         .data-value { font-family: monospace; font-size: 1.1em; }
 
-        /* 🔮 擴充按鈕群組設計 */
-        .action-group { display: flex; gap: 8px; margin-top: 15px; }
-        .action-btn { flex: 1; background: transparent; border: 1px solid; border-radius: 5px; padding: 6px; cursor: pointer; font-size: 0.8em; font-weight: bold; transition: all 0.3s ease; text-align: center; }
+        /* 🔮 改變排版：升級為 2x2 網格佈局，容納 4 顆按鈕 */
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+        .action-btn { background: transparent; border: 1px solid; border-radius: 5px; padding: 6px; cursor: pointer; font-size: 0.85em; font-weight: bold; transition: all 0.3s ease; text-align: center; width: 100%; box-sizing: border-box;}
         
         .btn-cr { border-color: #ffcc00; color: #ffcc00; }
         .btn-cr:hover { background: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00; }
         
+        /* 🔮 新增：集合點導航按鈕樣式 */
+        .btn-rally { border-color: #00ffaa; color: #00ffaa; }
+        .btn-rally:hover { background: #00ffaa; color: #000; box-shadow: 0 0 8px #00ffaa; }
+        
         .btn-track { border-color: #00f3ff; color: #00f3ff; }
         .btn-track:hover, .btn-track.active { background: #00f3ff; color: #000; box-shadow: 0 0 8px #00f3ff; }
-        
         .btn-off { border-color: #ff0055; color: #ff0055; }
         .btn-off:hover { background: #ff0055; color: #fff; box-shadow: 0 0 8px #ff0055; }
 
@@ -56,6 +69,7 @@
     
     <div id="sidebar">
         <h2>即時動態監控 (Analysis)</h2>
+        <div id="rally-info">💡 提示：在地圖上點擊可設定「集合點」</div>
         <div id="user-list">
             <div style="text-align:center; color:#047a80;">等待資料連線中...</div>
         </div>
@@ -75,18 +89,40 @@
         const db = getDatabase(app);
 
         const map = L.map('map').setView([23.6978, 120.9605], 7);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
 
         const markers = {};
-        const polylines = {}; // 儲存每個使用者的軌跡物件
-        const historyListeners = {}; // 儲存軌跡的 Firebase 監聽器
+        const polylines = {}; 
+        const historyListeners = {}; 
         
         const userListDiv = document.getElementById('user-list');
         const logMessagesDiv = document.getElementById('log-messages');
+        const rallyInfoDiv = document.getElementById('rally-info');
+
+        // 🔮 新增：集合點全域變數
+        let rallyMarker = null;
+        let currentRallyPoint = null;
+
+        // 🔮 新增：監聽地圖點擊事件，設定目標集合點
+        map.on('click', (e) => {
+            currentRallyPoint = { lat: e.latlng.lat, lng: e.latlng.lng };
+            
+            if (rallyMarker) {
+                rallyMarker.setLatLng(e.latlng);
+            } else {
+                const rallyIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color:#00ffaa; width:16px; height:16px; border-radius:50%; box-shadow: 0 0 15px #00ffaa; border: 2px solid #fff;"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                rallyMarker = L.marker(e.latlng, {icon: rallyIcon, zIndexOffset: 1000}).addTo(map);
+            }
+            
+            rallyMarker.bindPopup(`<b>🎯 目標集合點</b><br>${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`).openPopup();
+            rallyInfoDiv.innerHTML = `🎯 集合點已設定：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+            addLogMessage(`已更新地圖集合點座標`);
+        });
 
         function addLogMessage(message) {
             const now = new Date();
@@ -104,70 +140,80 @@
             if (!data) return;
 
             let listHTML = '';
-            for (const uid in data) {
-                const user = data[uid];
+            
+            const usersArray = Object.keys(data).map(uid => ({ uid, ...data[uid] }));
+            usersArray.sort((a, b) => {
+                if (a.status === 'active' && b.status !== 'active') return -1;
+                if (a.status !== 'active' && b.status === 'active') return 1;
+                return 0; 
+            });
+
+            for (const user of usersArray) {
+                const uid = user.uid;
                 const lat = user.lat;
                 const lng = user.lng;
                 const isActive = user.status === 'active';
                 const timeString = new Date(user.timestamp).toLocaleTimeString();
                 
-                // 確認該人員目前的軌跡顯示狀態，以便保持按鈕樣式
-                const isTracking = !!polylines[uid];
-
-                // 產生 3 顆功能按鈕 (只有 Active 才顯示)
-                const actionGroupHTML = isActive 
-                    ? `<div class="action-group">
-                           <button class="action-btn btn-cr call-cr-btn" data-uid="${uid}">🔊 呼叫</button>
-                           <button class="action-btn btn-track track-btn ${isTracking ? 'active' : ''}" data-uid="${uid}">📍 ${isTracking ? '關閉軌跡' : '30分軌跡'}</button>
-                           <button class="action-btn btn-off force-off-btn" data-uid="${uid}">📴 強制離線</button>
-                       </div>` 
-                    : ``;
-
-                listHTML += `
-                    <div class="user-card ${isActive ? '' : 'offline'}">
-                        <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">
-                            <span class="status-dot"></span>${uid}
-                        </div>
-                        <div><span class="data-label">狀態:</span> <span class="data-value">${user.status.toUpperCase()}</span></div>
-                        <div><span class="data-label">座標:</span> <span class="data-value">${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
-                        <div><span class="data-label">更新:</span> <span class="data-value">${timeString}</span></div>
-                        ${actionGroupHTML}
-                    </div>
-                `;
+                const batteryLevel = user.battery !== undefined && user.battery !== 'N/A' ? user.battery : '--';
+                const isCharging = user.charging ? '⚡' : '';
+                const batteryClass = (batteryLevel !== '--' && batteryLevel <= 20) ? 'battery-low' : '';
+                const batteryHTML = isActive ? `<span class="battery-badge ${batteryClass}">🔋 ${batteryLevel}% ${isCharging}</span>` : '';
 
                 if (isActive) {
+                    const isTracking = !!polylines[uid];
+                    // 🔮 更新：改用 action-grid 排列四顆按鈕
+                    const actionGroupHTML = `
+                       <div class="action-grid">
+                           <button class="action-btn btn-cr call-cr-btn" data-uid="${uid}">🔊 呼叫 CR</button>
+                           <button class="action-btn btn-rally send-rally-btn" data-uid="${uid}">🚩 派發導航</button>
+                           <button class="action-btn btn-track track-btn ${isTracking ? 'active' : ''}" data-uid="${uid}">📍 ${isTracking ? '關閉軌跡' : '歷史軌跡'}</button>
+                           <button class="action-btn btn-off force-off-btn" data-uid="${uid}">📴 強制離線</button>
+                       </div>`;
+
+                    listHTML += `
+                        <div class="user-card">
+                            <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">
+                                <span class="status-dot"></span>${uid}
+                                ${batteryHTML}
+                            </div>
+                            <div class="card-body">
+                                <div><span class="data-label">狀態:</span> <span class="data-value">ACTIVE</span></div>
+                                <div><span class="data-label">座標:</span> <span class="data-value">${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+                                <div><span class="data-label">更新:</span> <span class="data-value">${timeString}</span></div>
+                                ${actionGroupHTML}
+                            </div>
+                        </div>
+                    `;
+
                     if (markers[uid]) {
                         markers[uid].setLatLng([lat, lng]);
-                        markers[uid].bindPopup(`<b>${uid}</b><br>更新時間: ${timeString}`);
+                        markers[uid].bindPopup(`<b>${uid}</b><br>電量: ${batteryLevel}%<br>更新: ${timeString}`);
                     } else {
-                        const tronIcon = L.divIcon({
-                            className: 'custom-div-icon',
-                            html: `<div style="background-color:#00f3ff; width:12px; height:12px; border-radius:50%; box-shadow: 0 0 10px #00f3ff;"></div>`,
-                            iconSize: [12, 12],
-                            iconAnchor: [6, 6]
-                        });
+                        const tronIcon = L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color:#00f3ff; width:12px; height:12px; border-radius:50%; box-shadow: 0 0 10px #00f3ff;"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] });
                         markers[uid] = L.marker([lat, lng], {icon: tronIcon}).addTo(map);
-                        markers[uid].bindPopup(`<b>${uid}</b><br>更新時間: ${timeString}`);
+                        markers[uid].bindPopup(`<b>${uid}</b><br>電量: ${batteryLevel}%<br>更新: ${timeString}`);
                     }
                 } else {
-                    if (markers[uid]) {
-                        map.removeLayer(markers[uid]);
-                        delete markers[uid];
-                    }
-                    // 如果人員離線，自動隱藏他的歷史軌跡
+                    listHTML += `
+                        <div class="user-card offline">
+                            <div style="font-weight:bold; font-size:1em; color:#888;"><span class="status-dot"></span>${uid}</div>
+                            <div class="offline-text">上次更新: ${timeString}</div>
+                        </div>
+                    `;
+
+                    if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; }
                     if (polylines[uid]) { toggleTrajectory(uid, null); }
                 }
             }
             userListDiv.innerHTML = listHTML;
         });
 
-        // 🔮 集中管理面板按鈕的點擊事件 (Event Delegation)
         userListDiv.addEventListener('click', (e) => {
             const targetBtn = e.target;
             const targetUid = targetBtn.getAttribute('data-uid');
             if (!targetUid) return;
 
-            // 1. 呼叫 CR
             if (targetBtn.classList.contains('call-cr-btn')) {
                 set(ref(db, `tracking/alerts/targeted_cr/${targetUid}`), { timestamp: Date.now(), from: '指揮中心' });
                 const originalText = targetBtn.innerText;
@@ -175,93 +221,62 @@
                 addLogMessage(`向 ${targetUid} 發送專屬 CR 呼叫`);
                 setTimeout(() => targetBtn.innerText = originalText, 2000);
             }
-            
-            // 2. 強制離線
+            // 🔮 新增：派發集合點按鈕邏輯
+            else if (targetBtn.classList.contains('send-rally-btn')) {
+                if (!currentRallyPoint) {
+                    alert("⚠️ 請先在地圖上「點擊任意位置」來設定一個目標集合點！");
+                    return;
+                }
+                set(ref(db, `tracking/commands/${targetUid}/rally_point`), { 
+                    lat: currentRallyPoint.lat, 
+                    lng: currentRallyPoint.lng, 
+                    timestamp: Date.now(), 
+                    from: '指揮中心' 
+                });
+                const originalText = targetBtn.innerText;
+                targetBtn.innerText = "✅ 已派發";
+                addLogMessage(`📍 已向 ${targetUid} 派發集合點導航任務`);
+                setTimeout(() => targetBtn.innerText = originalText, 2000);
+            }
             else if (targetBtn.classList.contains('force-off-btn')) {
-                if(confirm(`⚠️ 確定要強制切斷 ${targetUid} 的回報連線嗎？`)){
+                if(confirm(`⚠️ 確定要強制切斷 ${targetUid} 的連線嗎？`)){
                     set(ref(db, `tracking/commands/${targetUid}/force_offline`), { timestamp: Date.now(), from: '指揮中心' });
                     addLogMessage(`🚨 已強制切斷 ${targetUid} 的連線`);
                 }
             }
-
-            // 3. 顯示/隱藏軌跡
             else if (targetBtn.classList.contains('track-btn')) {
                 toggleTrajectory(targetUid, targetBtn);
             }
         });
 
-        // 🔮 切換 30 分鐘歷史軌跡的獨立邏輯
         function toggleTrajectory(uid, btnElement) {
             if (polylines[uid]) {
-                // 關閉軌跡
                 map.removeLayer(polylines[uid]);
                 delete polylines[uid];
-                
-                // 取消 Firebase 監聽，節省效能
-                if (historyListeners[uid]) {
-                    historyListeners[uid](); // 執行 Firebase 返回的取消函數
-                    delete historyListeners[uid];
-                }
-                
-                if(btnElement) {
-                    btnElement.innerText = "📍 30分軌跡";
-                    btnElement.classList.remove("active");
-                }
+                if (historyListeners[uid]) { historyListeners[uid](); delete historyListeners[uid]; }
+                if(btnElement) { btnElement.innerText = "📍 歷史軌跡"; btnElement.classList.remove("active"); }
                 addLogMessage(`已隱藏 ${uid} 的移動軌跡`);
-
             } else {
-                // 開啟軌跡
-                if(btnElement) {
-                    btnElement.innerText = "❌ 關閉軌跡";
-                    btnElement.classList.add("active");
-                }
+                if(btnElement) { btnElement.innerText = "❌ 關閉軌跡"; btnElement.classList.add("active"); }
                 addLogMessage(`正在繪製 ${uid} 過去 30 分鐘的軌跡...`);
 
                 const historyRef = ref(db, `tracking/history/${uid}`);
-                
-                // 使用 onValue，這樣只要使用者繼續移動，軌跡線就會「即時延長」
                 const unsubscribe = onValue(historyRef, (snapshot) => {
                     const data = snapshot.val();
                     if (!data) return;
-
                     const thirtyMinsAgo = Date.now() - 30 * 60 * 1000;
                     const latlngs = [];
-
-                    // 過濾出 30 分鐘內的點
                     for (const timestamp in data) {
-                        if (parseInt(timestamp) > thirtyMinsAgo) {
-                            latlngs.push([data[timestamp].lat, data[timestamp].lng]);
-                        }
+                        if (parseInt(timestamp) > thirtyMinsAgo) { latlngs.push([data[timestamp].lat, data[timestamp].lng]); }
                     }
-
-                    // 繪製發光的科技感虛線
-                    if (polylines[uid]) {
-                        polylines[uid].setLatLngs(latlngs);
-                    } else if (latlngs.length > 0) {
-                        polylines[uid] = L.polyline(latlngs, {
-                            color: '#00f3ff', weight: 4, opacity: 0.7, dashArray: '10, 10'
-                        }).addTo(map);
+                    if (polylines[uid]) { polylines[uid].setLatLngs(latlngs); } 
+                    else if (latlngs.length > 0) {
+                        polylines[uid] = L.polyline(latlngs, { color: '#00f3ff', weight: 4, opacity: 0.7, dashArray: '10, 10' }).addTo(map);
                     }
                 });
-                
-                // 把取消函數存起來，以便關閉軌跡時切斷監聽
                 historyListeners[uid] = unsubscribe; 
             }
         }
-
-        // 監聽全局趣味廣播
-        const crRef = ref(db, 'tracking/alerts/fun_cr');
-        let initialLoadCR = true;
-        onValue(crRef, (snapshot) => {
-            const data = snapshot.val();
-            if (initialLoadCR) { initialLoadCR = false; return; }
-            if (data) {
-                const utterance = new SpeechSynthesisUtterance('請支援、吸、阿'); 
-                utterance.lang = 'zh-TW'; utterance.rate = 0.9; utterance.pitch = 1.2;    
-                window.speechSynthesis.speak(utterance);
-                addLogMessage(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`);
-            }
-        });
     </script>
 </body>
 </html>

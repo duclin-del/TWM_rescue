@@ -6,26 +6,33 @@
     <title>災防通報系統 - 手機端</title>
     <style>
         body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s ease; }
-        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 30px; width: 90%; max-width: 400px; text-align: center; }
-        .data-panel { background: #000; border: 1px solid #047a80; padding: 15px; margin: 20px 0; border-radius: 5px; font-family: monospace; text-align: left; font-size: 0.9em; }
-        button { background: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 5px; text-transform: uppercase; }
+        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 25px; width: 90%; max-width: 400px; text-align: center; }
+        .data-panel { background: #000; border: 1px solid #047a80; padding: 15px; margin: 15px 0; border-radius: 5px; font-family: monospace; text-align: left; font-size: 0.9em; line-height: 1.5; }
+        button { background: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; font-weight: bold; }
         button:hover { background: #00f3ff; color: #000; }
         .warning-btn { border-color: #ff0055; color: #ff0055; }
         .cr-btn { border-color: #ffcc00; color: #ffcc00; }
-        .nav-btn { display: block; margin-top: 15px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
+        .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2>通報元件 (Call)</h2>
-    <div style="margin-bottom: 10px;">ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
+    <h2 style="margin-top:0;">通報終端</h2>
+    <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
     <div class="data-panel" id="statusPanel">狀態：待命<br>緯度：--<br>經度：--<br>電量：--</div>
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button><br>
-    <button id="warnBtn" class="warning-btn">🚨 緊急警報</button>
-    <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
-    <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟指定路徑導航</a>
+    
+    <div id="controlPanel" style="display:none; margin-top:10px;">
+        <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
+        <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
+    </div>
+    
+    <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航</a>
+    
+    <!-- 警告音效與無聲音軌 (用於維持背景存活) -->
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+    <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
 </div>
 
 <script type="module">
@@ -35,75 +42,117 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const userIdInput = document.getElementById('userId');
-    const statusPanel = document.getElementById('statusPanel');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const navBtn = document.getElementById('navBtn');
-    const alertSound = document.getElementById('alertSound');
+    const ui = {
+        userId: document.getElementById('userId'), status: document.getElementById('statusPanel'),
+        start: document.getElementById('startBtn'), stop: document.getElementById('stopBtn'),
+        ctrl: document.getElementById('controlPanel'), nav: document.getElementById('navBtn'),
+        snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio')
+    };
 
-    let watchId = null;
-    let lastHistoryTime = 0;
+    let watchId = null, lastHistoryTime = 0, wakeLock = null;
     let batteryInfo = { level: '--', charging: false };
 
+    // 電量監控
     if ('getBattery' in navigator) {
-        navigator.getBattery().then(battery => {
-            const upBat = () => { batteryInfo.level = Math.round(battery.level * 100); batteryInfo.charging = battery.charging; };
-            upBat();
-            battery.addEventListener('levelchange', upBat);
-            battery.addEventListener('chargingchange', upBat);
+        navigator.getBattery().then(bat => {
+            const upBat = () => { batteryInfo.level = Math.round(bat.level * 100); batteryInfo.charging = bat.charging; };
+            upBat(); bat.addEventListener('levelchange', upBat); bat.addEventListener('chargingchange', upBat);
         });
     }
 
-    startBtn.addEventListener('click', () => {
-        const uid = userIdInput.value.trim();
-        if (!uid) return alert('請輸入 ID');
-        alertSound.volume = 0.01; alertSound.play().then(() => { alertSound.pause(); alertSound.volume = 1; });
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    // 防止螢幕休眠機制
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+        }
+    }
 
-        startBtn.style.display = 'none'; stopBtn.style.display = 'inline-block';
+    ui.start.addEventListener('click', async () => {
+        const uid = ui.userId.value.trim();
+        if (!uid) return alert('請輸入 ID');
+        
+        // 權限與背景存活黑科技
+        ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
+        ui.silent.play().catch(e=>{}); // 播放無聲音軌防休眠
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        requestWakeLock();
+
+        ui.start.style.display = 'none'; ui.stop.style.display = 'inline-block'; ui.ctrl.style.display = 'block';
+        
         watchId = navigator.geolocation.watchPosition((pos) => {
             const { latitude, longitude } = pos.coords;
             const now = Date.now();
-            statusPanel.innerHTML = `狀態：傳輸中<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
+            ui.status.innerHTML = `狀態：傳輸中<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
             
-            set(ref(db, `tracking/users/${uid}`), { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active", battery: batteryInfo.level, charging: batteryInfo.charging });
-            if (now - lastHistoryTime > 30000) {
+            update(ref(db, `tracking/users/${uid}`), { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active", battery: batteryInfo.level, charging: batteryInfo.charging });
+            
+            // 預設 1 分鐘 (60000ms) 記錄一次歷史軌跡
+            if (now - lastHistoryTime > 60000) {
                 lastHistoryTime = now;
                 set(ref(db, `tracking/history/${uid}/${now}`), { lat: latitude, lng: longitude });
             }
-        }, (err) => { statusPanel.innerHTML = `錯誤：${err.message}`; }, { enableHighAccuracy: true });
+        }, (err) => { ui.status.innerHTML = `錯誤：${err.message}`; }, { enableHighAccuracy: true });
+        
         listenCmd(uid);
     });
 
-    stopBtn.addEventListener('click', () => {
+    ui.stop.addEventListener('click', () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
-        startBtn.style.display = 'inline-block'; stopBtn.style.display = 'none'; navBtn.style.display = 'none';
-        update(ref(db, `tracking/users/${userIdInput.value.trim()}`), { status: "offline" });
+        if (wakeLock) wakeLock.release().then(() => wakeLock = null);
+        ui.silent.pause();
+        ui.start.style.display = 'inline-block'; ui.stop.style.display = 'none'; ui.ctrl.style.display = 'none'; ui.nav.style.display = 'none';
+        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false });
     });
 
-    document.getElementById('warnBtn').onclick = () => set(ref(db, 'tracking/alerts/global'), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
-    document.getElementById('crBtn').onclick = () => set(ref(db, 'tracking/alerts/fun_cr'), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
+    // 手機端發送警報 (電腦端名字閃爍+音效)
+    document.getElementById('warnBtn').onclick = () => {
+        const uid = ui.userId.value.trim();
+        update(ref(db, `tracking/users/${uid}`), { isAlarm: true }); // 觸發閃爍
+        set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() }); // 觸發電腦音效
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000); // 10秒後解除閃爍
+    };
+
+    // 手機端發送支援 CR (電腦端名字加標籤+無音效)
+    document.getElementById('crBtn').onclick = () => {
+        const uid = ui.userId.value.trim();
+        update(ref(db, `tracking/users/${uid}`), { needCR: true }); // 觸發標籤
+        set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
+    };
+
+    function playAlert(msg, color) {
+        ui.snd.play().catch(e=>{});
+        const utter = new SpeechSynthesisUtterance(msg); utter.lang = 'zh-TW'; window.speechSynthesis.speak(utter);
+        document.body.style.backgroundColor = color; setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 800);
+    }
 
     function listenCmd(uid) {
+        // 監聽徹底刪除
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
-        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) stopBtn.click(); });
-        onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) {
-                const utter = new SpeechSynthesisUtterance('指揮中心呼叫，請支援 CR');
-                utter.lang = 'zh-TW'; window.speechSynthesis.speak(utter);
-            }
+        
+        // 監聽強制離線
+        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) ui.stop.click(); });
+        
+        // 監聽全體撤退 (Global Retreat)
+        onValue(ref(db, `tracking/commands/global/retreat`), (snap) => {
+            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('全體人員注意，立即撤退！', '#ff0000');
         });
+
+        // 監聽單獨警報/呼叫
+        onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
+            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心發出緊急警報！', '#ff0055');
+        });
+        onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
+            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心呼叫，請支援 CR！', '#665000');
+        });
+
+        // 監聽路徑派發
         onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
             const data = snap.val();
             if (data && data.timestamp > Date.now() - 5000) {
-                const pts = data.points;
-                const dest = pts[pts.length - 1];
-                const waypoints = pts.slice(0, -1).map(p => p.join(',')).join('|');
-                navBtn.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${waypoints}`;
-                navBtn.style.display = 'block';
-                const utter = new SpeechSynthesisUtterance('收到指定路徑任務，請開啟導航');
-                utter.lang = 'zh-TW'; window.speechSynthesis.speak(utter);
+                const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
+                ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
+                ui.nav.style.display = 'block';
+                playAlert('收到指定路徑任務，請開啟導航', '#003322');
             }
         });
     }

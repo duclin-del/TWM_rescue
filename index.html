@@ -2,296 +2,442 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>災防通報系統 - 手機端</title>
+    <title>戰情儀表板 (Analysis)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s ease; }
-        .container { background: rgba(0, 20, 30, 0.8); border: 2px solid #00f3ff; border-radius: 10px; box-shadow: 0 0 15px #00f3ff; padding: 20px; width: 90%; max-width: 400px; text-align: center; max-height: 95vh; overflow-y: auto; }
+        body { margin: 0; background: #0a0a0a; color: #00f3ff; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #map-container { flex: 3; position: relative; border-right: 2px solid #00f3ff; }
+        #map { width: 100%; height: 100%; background: #000; }
+        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%); transition: filter 0.4s ease; }
+        #map.real-world-mode .leaflet-tile-pane { filter: none !important; }
         
-        .data-panel { background: #000; border: 1px solid #047a80; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; font-size: 0.85em; }
+        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 15px; display: flex; flex-direction: column; min-width: 380px; }
         
-        button { background: transparent; color: #00f3ff; border: 1px solid #00f3ff; padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 5px; font-weight: bold; }
-        button:hover { background: #00f3ff; color: #000; }
-        .warning-btn { border-color: #ff0055; color: #ff0055; }
-        .cr-btn { border-color: #ffcc00; color: #ffcc00; }
-        .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
-        
-        .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
-        .env-btn { border-color: #555; color: #888; padding: 8px 2px; font-size: 0.8em; margin: 0; transition: all 0.2s; }
-        .env-btn.active[data-status="安全"] { background: #00ffaa; border-color: #00ffaa; color: #000; box-shadow: 0 0 8px #00ffaa;}
-        .env-btn.active[data-status="警戒"] { background: #ffcc00; border-color: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00;}
-        .env-btn.active[data-status="車輛不通"] { background: #ff5500; border-color: #ff5500; color: #fff; box-shadow: 0 0 8px #ff5500;}
-        .env-btn.active[data-status="有傷患"] { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 8px #ff0055;}
-        .env-btn.active[data-status="前往集合"] { background: #0088ff; border-color: #0088ff; color: #fff; box-shadow: 0 0 8px #0088ff;}
-        .env-btn.active[data-status="路坍"] { background: #995522; border-color: #995522; color: #fff; box-shadow: 0 0 8px #995522;}
+        .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #047a80; padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 5px; }
+        .toolbar button { background: transparent; border: 1px solid #00f3ff; color: #00f3ff; padding: 5px 8px; cursor: pointer; border-radius: 3px; font-weight: bold; }
+        .toolbar button:hover { background: #00f3ff; color: #000; }
+        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; }
+        .btn-danger:hover { background: #ff0055 !important; color: #fff !important; }
+        .btn-map-toggle { border-color: #ffaa00 !important; color: #ffaa00 !important; }
+        .btn-map-toggle:hover { background: #ffaa00 !important; color: #000 !important; }
+        /* 🔮 新增：匯出 JSON 按鈕樣式 */
+        .btn-export { border-color: #00ffaa !important; color: #00ffaa !important; }
+        .btn-export:hover { background: #00ffaa !important; color: #000 !important; }
 
-        .remark-input { flex: 1; background: #000; color: #ffaa00; border: 1px solid #047a80; padding: 8px; border-radius: 3px; outline: none; }
-        .remark-input::placeholder { color: #555; }
+        .user-card { background: rgba(0,0,0,0.6); border: 1px solid #047a80; padding: 8px 10px; margin-bottom: 8px; font-size: 0.85em; border-radius: 4px; }
+        .user-card:hover { border-color: #00f3ff; }
+        
+        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 4px; flex-wrap: wrap; gap: 4px; }
+        .info-row { color: #aaa; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
+        
+        .cr-tag { background: #ffcc00; color: #000; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; vertical-align: middle; }
+        .env-tag { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; font-weight: bold; vertical-align: middle; }
+        .env-safe { background: #00ffaa; color: #000; }
+        .env-alert { background: #ffcc00; color: #000; }
+        .env-blocked { background: #ff5500; color: #fff; }
+        .env-casualty { background: #ff0055; color: #fff; }
+        .env-rally { background: #0088ff; color: #fff; }
+        .env-collapse { background: #995522; color: #fff; }
 
-        /* 🔮 新增：照片預覽區塊樣式 */
-        .photo-preview-container { display: flex; gap: 5px; margin-top: 10px; overflow-x: auto; padding-bottom: 5px;}
-        .preview-img { height: 60px; border-radius: 5px; border: 1px solid #00ffaa; object-fit: cover; }
+        .flash-name { color: #ff0055; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
+        @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
+        
+        .battery-badge { font-size: 0.8em; padding: 1px 5px; border-radius: 3px; border: 1px solid #00f3ff; margin-left: auto; }
+        .battery-low { border-color: #ff0055; color: #ff0055; animation: blinkFast 1s infinite alternate; }
+
+        .action-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .action-btn { flex: 1 1 18%; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 4px 0; cursor: pointer; border-radius: 3px; text-align: center; white-space: nowrap; }
+        .btn-alert { border-color: #ff0055; color: #ff0055; }
+        .btn-call { border-color: #ffcc00; color: #ffcc00; }
+        .btn-path { border-color: #00ffaa; color: #00ffaa; }
+        .btn-off { border-color: #888; color: #888; }
+        .btn-photo { border-color: #00aaff; color: #00aaff; } 
+        
+        .remark-box { margin-top: 5px; font-size: 0.85em; color: #ffaa00; background: rgba(255, 170, 0, 0.1); padding: 4px 8px; border-radius: 3px; border-left: 2px solid #ffaa00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
+        .remark-box.expanded { white-space: normal; word-break: break-all; }
+        
+        /* 🔮 新增：AI 解析標籤區塊 */
+        .ai-box { margin-top: 5px; font-size: 0.85em; background: rgba(0, 243, 255, 0.1); padding: 6px; border-radius: 3px; border-left: 2px solid #00f3ff; }
+        .ai-badge { display: inline-block; background: #005577; color: #fff; padding: 2px 5px; border-radius: 3px; margin-right: 5px; margin-top: 3px; font-size: 0.9em;}
+        .ai-urgency-high { background: #ff0055; animation: blinkFast 1s infinite alternate; }
+
+        #log-panel { height: 100px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
+        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 5px; cursor: pointer; }
+
+        #photoModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
+        #photoModal .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 5px; font-size: 1.1em; z-index: 10000;}
+        #photoModal .close-btn:hover { background: #ff0055; color: #fff; }
+        .carousel-container { display: flex; align-items: center; justify-content: center; position: relative; max-width: 95vw; max-height: 85vh; }
+        .carousel-btn { background: rgba(0, 243, 255, 0.2); border: 2px solid #00f3ff; color: #00f3ff; font-size: 2em; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin: 0 20px; transition: all 0.3s ease; }
+        .carousel-btn:hover { background: #00f3ff; color: #000; }
+        .image-wrapper { position: relative; display: inline-block; }
+        #modalImg { max-height: 80vh; max-width: 75vw; object-fit: contain; border: 2px solid #00f3ff; border-radius: 8px; box-shadow: 0 0 20px rgba(0, 243, 255, 0.3); }
+        #modalCaption { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.7); color: #00ffaa; padding: 15px 0; text-align: center; font-size: 1.2em; font-family: monospace; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; box-sizing: border-box; }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2 style="margin-top:0;">通報終端</h2>
-    <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
-    
-    <div class="data-panel" id="statusPanel">狀態：待命 | 座標：-- | 電量：--</div>
-    
-    <button id="startBtn">啟動追蹤</button>
-    <button id="stopBtn" style="display:none;">停止追蹤</button><br>
-    
-    <div id="controlPanel" style="display:none; margin-top:10px;">
-        <div style="margin-bottom: 10px;">
-            <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
-            <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
-        </div>
-        
-        <div style="border-top: 1px dashed #047a80; padding-top: 10px;">
-            <div style="font-size:0.85em; color:#00f3ff; margin-bottom:5px;">現場環境回報 (可多選)</div>
-            <div class="env-grid">
-                <button class="env-btn" data-status="安全">安全</button>
-                <button class="env-btn" data-status="警戒">警戒</button>
-                <button class="env-btn" data-status="車輛不通">車不通</button>
-                <button class="env-btn" data-status="有傷患">有傷患</button>
-                <button class="env-btn" data-status="前往集合">去集合</button>
-                <button class="env-btn" data-status="路坍">路坍</button>
-            </div>
-            
-            <div style="display:flex; margin-top:8px; gap:5px;">
-                <input type="text" id="remarkInput" class="remark-input" placeholder="輸入現場備註情況...">
-                <button id="remarkBtn" style="margin:0; padding:5px 15px; font-size:0.85em; color:#ffaa00; border-color:#ffaa00;">送出</button>
-            </div>
-        </div>
-
-        <!-- 🔮 新增：現場照片拍攝區塊 -->
-        <div style="border-top: 1px dashed #047a80; padding-top: 10px; margin-top: 10px;">
-            <input type="file" id="photoInput" accept="image/*" multiple style="display:none;">
-            <button id="photoBtn" style="border-color:#00ffaa; color:#00ffaa; width:100%; margin:0;">📸 拍攝或選擇照片 (最多3張)</button>
-            <div id="photoPreview" class="photo-preview-container"></div>
-        </div>
+<div id="map-container"><div id="map"></div></div>
+<div id="sidebar">
+    <div class="toolbar">
+        <button id="mapToggleBtn" class="btn-map-toggle" onclick="toggleMapType()">🛰️ 衛星地圖</button>
+        <!-- 💡 新增：標準化 JSON 匯出按鈕 -->
+        <button class="btn-export" onclick="exportGeoJSON()">📥 匯出 GeoJSON</button>
+        <button onclick="clearPath()">清除路徑</button>
+        <button onclick="toggleAllTrack(true)">全選</button>
+        <button onclick="toggleAllTrack(false)">取消</button>
+        <button class="btn-danger" onclick="allRetreat()">🚨 全體撤退</button>
     </div>
     
-    <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航</a>
+    <div id="user-list" style="flex-grow:1; overflow-y:auto;"></div>
+    <details><summary style="cursor:pointer; color:#888; padding:5px; border-top:1px solid #333; margin-top:5px;">離線紀錄</summary><div id="offline-list"></div></details>
+    <div id="log-panel" id="logs"></div>
     
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-    <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+    <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+</div>
+
+<div id="photoModal">
+    <button class="close-btn" onclick="closePhotoModal()">關閉 (X)</button>
+    <div class="carousel-container">
+        <button class="carousel-btn" onclick="navPhoto(-1)">&#10094;</button>
+        <div class="image-wrapper">
+            <img id="modalImg" src="">
+            <div id="modalCaption">照片 1/5 | 拍攝時間: --</div>
+        </div>
+        <button class="carousel-btn" onclick="navPhoto(1)">&#10095;</button>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    import { firebaseConfig } from './firebase-config.js'; 
+    import { getDatabase, ref, onValue, set, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { firebaseConfig } from './firebase-config.js';
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const ui = {
-        userId: document.getElementById('userId'), status: document.getElementById('statusPanel'),
-        start: document.getElementById('startBtn'), stop: document.getElementById('stopBtn'),
-        ctrl: document.getElementById('controlPanel'), nav: document.getElementById('navBtn'),
-        snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio'),
-        remarkInput: document.getElementById('remarkInput'), remarkBtn: document.getElementById('remarkBtn'),
-        photoInput: document.getElementById('photoInput'), photoBtn: document.getElementById('photoBtn'),
-        photoPreview: document.getElementById('photoPreview')
+    const map = L.map('map').setView([23.7, 121], 7);
+    
+    const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+    const contourLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, opacity: 0.35 });
+    
+    defaultLayer.addTo(map);
+    let isSatelliteMode = false;
+
+    window.toggleMapType = () => {
+        const mapDiv = document.getElementById('map');
+        const toggleBtn = document.getElementById('mapToggleBtn');
+        if (!isSatelliteMode) {
+            map.removeLayer(defaultLayer); satelliteLayer.addTo(map); contourLayer.addTo(map);
+            mapDiv.classList.add('real-world-mode'); 
+            toggleBtn.innerHTML = "🗺️ 預設地圖"; log("已切換為「衛星影像與地形等高線」");
+        } else {
+            map.removeLayer(satelliteLayer); map.removeLayer(contourLayer); defaultLayer.addTo(map);
+            mapDiv.classList.remove('real-world-mode'); 
+            toggleBtn.innerHTML = "🛰️ 衛星地圖"; log("已切換回「預設」模式");
+        }
+        isSatelliteMode = !isSatelliteMode;
     };
 
-    let watchId = null, lastHistoryTime = 0, wakeLock = null;
-    let batteryInfo = null; 
-    let currentEnvStatus = new Set(); 
-    let currentPhotos = []; // 🔮 新增：儲存壓縮後的照片 Base64 字串
+    const pcSound = document.getElementById('pcAlertSound');
 
-    if ('getBattery' in navigator) {
-        navigator.getBattery().then(bat => {
-            batteryInfo = { level: Math.round(bat.level * 100), charging: bat.charging };
-            const upBat = () => { batteryInfo.level = Math.round(bat.level * 100); batteryInfo.charging = bat.charging; };
-            bat.addEventListener('levelchange', upBat); 
-            bat.addEventListener('chargingchange', upBat);
-        }).catch(() => {});
-    }
+    let plannedPath = [], pathMarkers = [];
+    let pathLine = L.polyline([], {color:'#00ffaa', weight:3, dashArray:'5,10'}).addTo(map);
+    
+    const activeTrackers = new Set(); 
+    let knownUsers = new Set();       
+    const markers = {}, polylines = {}, hListeners = {};
+    window.globalPhotos = {}; 
+    let currentModalPhotos = [];
+    let currentPhotoIndex = 0;
+    
+    // 💡 儲存目前 Firebase 所有的使用者資料，供匯出 GeoJSON 使用
+    let currentUsersData = {}; 
 
-    async function requestWakeLock() {
-        if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} }
-    }
-
-    // 🔮 新增：照片選擇與壓縮處理邏輯
-    ui.photoBtn.addEventListener('click', () => ui.photoInput.click());
-
-    ui.photoInput.addEventListener('change', async (e) => {
-        const files = Array.from(e.target.files).slice(0, 3); // 限制最多處理 3 張
-        if (files.length === 0) return;
-        
-        ui.photoBtn.innerText = "⏳ 處理中...";
-        currentPhotos = [];
-        ui.photoPreview.innerHTML = '';
-        
-        for (let file of files) {
-            const base64 = await compressImage(file);
-            currentPhotos.push(base64);
-            
-            const img = document.createElement('img');
-            img.src = base64;
-            img.className = 'preview-img';
-            ui.photoPreview.appendChild(img);
-        }
-        ui.photoBtn.innerText = `📸 已上傳 ${currentPhotos.length} 張照片 (點擊重拍)`;
-
-        // 立刻將照片同步到 Firebase
-        const uid = ui.userId.value.trim();
-        if (uid && watchId) {
-            update(ref(db, `tracking/users/${uid}`), { images: currentPhotos });
-        }
+    map.on('click', e => {
+        plannedPath.push([e.latlng.lat, e.latlng.lng]);
+        pathLine.setLatLngs(plannedPath);
+        pathMarkers.push(L.circleMarker(e.latlng, {radius:4, color:'#00ffaa'}).addTo(map));
+        log(`已加入路徑點`);
     });
 
-    // 🔮 新增：畫布壓縮圖片函數 (將照片縮小至最大 800px，品質 60%，避免塞爆資料庫)
-    function compressImage(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_SIZE = 800;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height && width > MAX_SIZE) {
-                        height *= MAX_SIZE / width;
-                        width = MAX_SIZE;
-                    } else if (height > MAX_SIZE) {
-                        width *= MAX_SIZE / height;
-                        height = MAX_SIZE;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.6));
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-    }
-
-    // 環境狀態切換
-    document.querySelectorAll('.env-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const status = e.target.getAttribute('data-status');
-            if (currentEnvStatus.has(status)) { currentEnvStatus.delete(status); e.target.classList.remove('active'); } 
-            else { currentEnvStatus.add(status); e.target.classList.add('active'); }
-
-            const uid = ui.userId.value.trim();
-            if (uid) update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') });
-        });
-    });
-
-    // 備註送出
-    ui.remarkBtn.addEventListener('click', () => {
-        const uid = ui.userId.value.trim();
-        const text = ui.remarkInput.value.trim();
-        if (uid) {
-            update(ref(db, `tracking/users/${uid}`), { envRemark: text });
-            const origText = ui.remarkBtn.innerText;
-            ui.remarkBtn.innerText = "✅"; setTimeout(() => ui.remarkBtn.innerText = origText, 1500);
-        }
-    });
-
-    ui.start.addEventListener('click', async () => {
-        const uid = ui.userId.value.trim();
-        if (!uid) return alert('請輸入 ID');
-        
-        ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
-        ui.silent.play().catch(e=>{});
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-        requestWakeLock();
-
-        ui.start.style.display = 'none'; ui.stop.style.display = 'inline-block'; ui.ctrl.style.display = 'block';
-        
-        watchId = navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude } = pos.coords;
-            const now = Date.now();
-            
-            let statusHtml = `傳輸中 | 座標: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            if (batteryInfo) statusHtml += ` | 🔋${batteryInfo.level}%${batteryInfo.charging ? '⚡' : ''}`;
-            ui.status.innerHTML = statusHtml;
-            
-            let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
-            if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
-            if (currentPhotos.length > 0) { payload.images = currentPhotos; } // 送出位置時一併夾帶照片
-            
-            update(ref(db, `tracking/users/${uid}`), payload);
-            
-            if (now - lastHistoryTime > 60000) {
-                lastHistoryTime = now;
-                set(ref(db, `tracking/history/${uid}/${now}`), { lat: latitude, lng: longitude });
-            }
-        }, (err) => { ui.status.innerHTML = `錯誤：${err.message}`; }, { enableHighAccuracy: true });
-        
-        listenCmd(uid);
-    });
-
-    ui.stop.addEventListener('click', () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (wakeLock) wakeLock.release().then(() => wakeLock = null);
-        ui.silent.pause();
-        ui.start.style.display = 'inline-block'; ui.stop.style.display = 'none'; ui.ctrl.style.display = 'none'; ui.nav.style.display = 'none';
-        
-        currentEnvStatus.clear();
-        currentPhotos = []; // 清空照片陣列
-        ui.photoPreview.innerHTML = ''; // 清空照片縮圖
-        ui.photoBtn.innerText = "📸 拍攝或選擇照片 (最多3張)";
-        document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
-        ui.remarkInput.value = '';
-        
-        // 離線時也把雲端的照片欄位清空
-        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "", envRemark: "", images: null });
-    });
-
-    document.getElementById('warnBtn').onclick = () => {
-        const uid = ui.userId.value.trim();
-        update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
-        set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
-        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
+    window.clearPath = () => { 
+        plannedPath = []; pathLine.setLatLngs([]); 
+        pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; 
+        log("路徑與標記已清除"); 
     };
 
-    document.getElementById('crBtn').onclick = () => {
-        const uid = ui.userId.value.trim();
-        update(ref(db, `tracking/users/${uid}`), { needCR: true });
-        set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
-        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
+    window.toggleAllTrack = (check) => {
+        document.querySelectorAll('.track-cb').forEach(cb => {
+            if (cb.checked !== check) { cb.checked = check; cb.dispatchEvent(new Event('change')); }
+        });
     };
 
-    function playAlert(msg, color) {
-        ui.snd.play().catch(e=>{});
-        const utter = new SpeechSynthesisUtterance(msg); utter.lang = 'zh-TW'; window.speechSynthesis.speak(utter);
-        document.body.style.backgroundColor = color; setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 800);
-    }
+    window.allRetreat = () => {
+        if(confirm('確定要對所有人員發出「全體撤退」警報嗎？')) {
+            set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() });
+            log("🚨 已發出全體撤退指令！");
+        }
+    };
 
-    function listenCmd(uid) {
-        onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
-        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) ui.stop.click(); });
-        onValue(ref(db, `tracking/commands/global/retreat`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('全體人員注意，立即撤退！', '#ff0000');
+    // 💡 核心：將資料標準化並匯出為 GeoJSON[cite: 1]
+    window.exportGeoJSON = () => {
+        const features = [];
+        Object.keys(currentUsersData).forEach(uid => {
+            const u = currentUsersData[uid];
+            if (u.status !== 'active') return;
+            
+            // 建立標準 GeoJSON 格式物件
+            features.push({
+                type: "Feature",
+                geometry: {
+                    type: "Point",
+                    coordinates: [u.lng, u.lat] // GeoJSON 規定為 [經度, 緯度]
+                },
+                properties: {
+                    id: uid,
+                    timestamp: u.timestamp,
+                    battery: u.battery || null,
+                    envStatus: u.envStatus || null,
+                    rawRemark: u.envRemark || null,
+                    aiAnalysis: u.ai_analysis || null
+                }
+            });
         });
-        onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心發出緊急警報！', '#ff0055');
-        });
-        onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心呼叫，請支援 CR！', '#665000');
-        });
-        onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
-            const data = snap.val();
-            if (data && data.timestamp > Date.now() - 5000) {
-                const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
-                ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
-                ui.nav.style.display = 'block';
-                playAlert('收到指定路徑任務，請開啟導航', '#003322');
+
+        const geojson = {
+            type: "FeatureCollection",
+            features: features
+        };
+
+        const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: "application/json;charset=utf-8"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Disaster_Report_${new Date().getTime()}.geojson`;
+        a.click();
+        log("✅ 已匯出標準化 GeoJSON 檔案");
+    };
+
+    function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString()}] ${m}`; document.getElementById('log-panel').prepend(d); }
+
+    onValue(ref(db, 'tracking/users'), snap => {
+        currentUsersData = snap.val() || {}; // 更新全域資料快取
+        document.getElementById('user-list').innerHTML = '';
+        document.getElementById('offline-list').innerHTML = '';
+        
+        Object.keys(currentUsersData).forEach(uid => {
+            const u = currentUsersData[uid];
+            if (u.status === 'active') {
+                if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
+                renderCard(uid, u);
+                
+                if (activeTrackers.has(uid)) {
+                    updateMarker(uid, u);
+                    enableTrajectory(uid);
+                } else {
+                    removeMarker(uid);
+                    disableTrajectory(uid);
+                }
+            } else {
+                renderOffline(uid, u);
+                if (activeTrackers.has(uid)) { activeTrackers.delete(uid); }
+                removeMarker(uid);
+                disableTrajectory(uid);
             }
         });
+    });
+
+    let initialGlobalAlert = true;
+    onValue(ref(db, 'tracking/alerts/global'), (snap) => {
+        if (initialGlobalAlert) { initialGlobalAlert = false; return; }
+        const data = snap.val();
+        if (data && data.type === 'alarm') {
+            pcSound.play().catch(e=>{});
+            log(`⚠️ 收到來自 ${data.triggerBy} 的緊急警報！`);
+        }
+    });
+
+    let initialCrAlert = true;
+    onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
+        if (initialCrAlert) { initialCrAlert = false; return; }
+        const data = snap.val();
+        if (data && data.triggerBy !== 'HQ') log(`🔊 收到來自 ${data.triggerBy} 的支援 CR 請求`);
+    });
+
+    function renderCard(uid, u) {
+        const div = document.createElement('div'); 
+        div.className = 'user-card';
+        const isTracked = activeTrackers.has(uid);
+        const nameClass = u.isAlarm ? 'flash-name' : '';
+        const crTag = u.needCR ? `<span class="cr-tag">支援CR</span>` : '';
+        
+        let envTagHtml = '';
+        if (u.envStatus) {
+            const statuses = u.envStatus.split(',');
+            statuses.forEach(status => {
+                if (!status) return;
+                let envClass = '';
+                switch(status) {
+                    case '安全': envClass = 'env-safe'; break;
+                    case '警戒': envClass = 'env-alert'; break;
+                    case '車輛不通': envClass = 'env-blocked'; break;
+                    case '有傷患': envClass = 'env-casualty'; break;
+                    case '前往集合': envClass = 'env-rally'; break;
+                    case '路坍': envClass = 'env-collapse'; break;
+                }
+                envTagHtml += `<span class="env-tag ${envClass}">${status}</span>`;
+            });
+        }
+        
+        let batteryHTML = '';
+        if (u.battery !== undefined && u.battery !== null) {
+            const batClass = u.battery <= 20 ? 'battery-low' : '';
+            batteryHTML = `<span class="battery-badge ${batClass}">🔋${u.battery}% ${u.charging ? '⚡' : ''}</span>`;
+        }
+        
+        let remarkHtml = '';
+        if (u.envRemark) {
+            remarkHtml = `<div class="remark-box" onclick="this.classList.toggle('expanded')" title="點擊展開/收合">📝 原文：${u.envRemark}</div>`;
+        }
+
+        // 💡 呈現 AI 解析結果的區塊[cite: 1]
+        let aiHtml = '';
+        if (u.ai_analysis) {
+            const ai = u.ai_analysis;
+            const urgencyClass = ai.urgency === '高' ? 'ai-urgency-high' : '';
+            
+            let needsHtml = '';
+            if (ai.needs && Array.isArray(ai.needs) && ai.needs.length > 0) {
+                needsHtml = `<br>所需物資: <span style="color:#ffcc00">${ai.needs.join('、')}</span>`;
+            }
+
+            aiHtml = `
+                <div class="ai-box">
+                    <span class="ai-badge ${urgencyClass}">急迫性: ${ai.urgency || '未知'}</span>
+                    <span class="ai-badge">🤖 AI解析</span>
+                    <div style="margin-top:4px;">
+                        事件: <span style="color:#fff">${ai.event || '無'}</span><br>
+                        傷亡: <span style="color:#ff0055">${ai.casualties || '無'}</span>
+                        ${needsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        let photoBtnHtml = '';
+        if (u.images && u.images.length > 0) {
+            window.globalPhotos[uid] = u.images; 
+            photoBtnHtml = `<button class="action-btn btn-photo" onclick="showPhotoModal('${uid}')">📸 照片(${u.images.length})</button>`;
+        }
+
+        div.innerHTML = `
+            <div class="header-row">
+                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''}>
+                <span class="${nameClass}">${uid}</span> ${crTag} ${envTagHtml} ${batteryHTML}
+            </div>
+            <div class="info-row">
+                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</span>
+                <span>回報: ${new Date(u.timestamp).toLocaleTimeString()}</span>
+            </div>
+            <div class="action-grid">
+                <button class="action-btn btn-alert" onclick="sendCmd('${uid}', 'targeted_alert')">警報</button>
+                <button class="action-btn btn-call" onclick="sendCmd('${uid}', 'targeted_cr')">呼叫</button>
+                <button class="action-btn btn-path" onclick="sendPath('${uid}')">路徑</button>
+                <button class="action-btn btn-off" onclick="forceOff('${uid}')">離線</button>
+                ${photoBtnHtml}
+            </div>
+            ${remarkHtml}
+            ${aiHtml}`;
+            
+        document.getElementById('user-list').appendChild(div);
+
+        div.querySelector('.track-cb').addEventListener('change', (e) => {
+            if (e.target.checked) { 
+                activeTrackers.add(uid); updateMarker(uid, u); enableTrajectory(uid); 
+            } else { 
+                activeTrackers.delete(uid); removeMarker(uid); disableTrajectory(uid); 
+            }
+        });
     }
+
+    function renderOffline(uid, u) { 
+        const div = document.createElement('div'); div.style.padding='5px 10px'; div.style.borderBottom='1px solid #222'; div.style.fontSize='0.8em';
+        div.innerHTML = `<span style="color:#666">${uid} (已離線) - ${new Date(u.timestamp).toLocaleTimeString()}</span>`;
+        document.getElementById('offline-list').appendChild(div);
+    }
+
+    function updateMarker(uid, u) {
+        let color = '#00f3ff';
+        // 如果有 AI 解析且急迫性高，或者發出警報，地圖點顯示紅色
+        if (u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高')) {
+            color = '#ff0055';
+        }
+        
+        if (markers[uid]) { 
+            markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); 
+        } else { 
+            markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color, fillOpacity: 0.8}).addTo(map); 
+        }
+    }
+    
+    function removeMarker(uid) {
+        if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; }
+    }
+
+    function enableTrajectory(uid) {
+        if (!hListeners[uid]) {
+            hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
+                const pts = Object.values(s.val() || {}).map(p => [p.lat, p.lng]);
+                if (polylines[uid]) polylines[uid].setLatLngs(pts);
+                else polylines[uid] = L.polyline(pts, {color:'#00f3ff', weight:2, dashArray:'5,5'}).addTo(map);
+            });
+        }
+    }
+    
+    function disableTrajectory(uid) {
+        if (polylines[uid]) { map.removeLayer(polylines[uid]); delete polylines[uid]; }
+        if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
+    }
+
+    window.showPhotoModal = (uid) => {
+        currentModalPhotos = window.globalPhotos[uid];
+        if (!currentModalPhotos || currentModalPhotos.length === 0) return;
+        
+        currentPhotoIndex = 0;
+        updateModalView();
+        document.getElementById('photoModal').style.display = 'flex';
+    };
+    
+    window.navPhoto = (direction) => {
+        currentPhotoIndex += direction;
+        if (currentPhotoIndex < 0) currentPhotoIndex = currentModalPhotos.length - 1;
+        if (currentPhotoIndex >= currentModalPhotos.length) currentPhotoIndex = 0;
+        updateModalView();
+    };
+    
+    function updateModalView() {
+        const photoObj = currentModalPhotos[currentPhotoIndex];
+        const timeStr = new Date(photoObj.time).toLocaleString();
+        
+        document.getElementById('modalImg').src = photoObj.data;
+        document.getElementById('modalCaption').innerText = `照片 ${currentPhotoIndex + 1} / ${currentModalPhotos.length}  |  拍攝時間: ${timeStr}`;
+    }
+    
+    window.closePhotoModal = () => {
+        document.getElementById('photoModal').style.display = 'none';
+        document.getElementById('modalImg').src = '';
+    };
+
+    window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`已向 ${uid} 發送指令`); };
+    window.sendPath = uid => {
+        if (plannedPath.length < 1) return alert("請先點擊地圖規劃路徑");
+        set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`已向 ${uid} 派發路徑`);
+    };
+    window.forceOff = uid => {
+        if (confirm("強制離線：\n[確定] 徹底刪除所有資料\n[取消] 斷線並保留紀錄於摺疊區")) { remove(ref(db, `tracking/users/${uid}`)); remove(ref(db, `tracking/history/${uid}`)); }
+        else { set(ref(db, `tracking/commands/${uid}/force_offline`), { timestamp: Date.now() }); update(ref(db, `tracking/users/${uid}`), {status:'offline'}); }
+    };
 </script>
 </body>
 </html>

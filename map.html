@@ -9,108 +9,40 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #0a0a0a;
-            color: #00f3ff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-        #map-container {
-            flex: 3;
-            position: relative;
-            border-right: 2px solid #00f3ff;
-            box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2);
-            background: #000;
-        }
+        body { margin: 0; padding: 0; background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #map-container { flex: 3; position: relative; border-right: 2px solid #00f3ff; box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2); background: #000; }
         #map { width: 100%; height: 100%; background: #000; }
         .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
-        #sidebar {
-            flex: 1;
-            background: rgba(0, 20, 30, 0.95);
-            padding: 20px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            min-width: 320px;
-        }
-        h2 {
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border-bottom: 1px solid #047a80;
-            padding-bottom: 10px;
-            margin-top: 0;
-            text-align: center;
-            flex-shrink: 0;
-        }
-        #user-list {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-bottom: 20px;
-        }
+        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; min-width: 350px; }
+        h2 { text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #047a80; padding-bottom: 10px; margin-top: 0; text-align: center; flex-shrink: 0; }
+        #user-list { flex-grow: 1; overflow-y: auto; margin-bottom: 20px; padding-right: 5px;}
         
-        .user-card {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #047a80;
-            border-radius: 5px;
-            padding: 15px;
-            margin-bottom: 15px;
-            transition: all 0.3s ease;
-        }
+        .user-card { background: rgba(0, 0, 0, 0.6); border: 1px solid #047a80; border-radius: 5px; padding: 15px; margin-bottom: 15px; transition: all 0.3s ease; }
         .user-card:hover { border-color: #00f3ff; box-shadow: 0 0 10px rgba(0, 243, 255, 0.5); }
         .user-card.offline { border-color: #555; color: #888; }
         
-        .status-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: #00f3ff;
-            margin-right: 8px;
-            box-shadow: 0 0 8px #00f3ff;
-        }
+        .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #00f3ff; margin-right: 8px; box-shadow: 0 0 8px #00f3ff; }
         .offline .status-dot { background-color: #555; box-shadow: none; }
         .data-label { font-size: 0.85em; color: #047a80; }
         .data-value { font-family: monospace; font-size: 1.1em; }
 
-        .call-cr-btn {
-            background: transparent;
-            border: 1px solid #ffcc00;
-            color: #ffcc00;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-size: 0.9em;
-            transition: all 0.3s ease;
-            display: block;
-            width: 100%;
-        }
-        .call-cr-btn:hover { background: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00; }
+        /* 🔮 擴充按鈕群組設計 */
+        .action-group { display: flex; gap: 8px; margin-top: 15px; }
+        .action-btn { flex: 1; background: transparent; border: 1px solid; border-radius: 5px; padding: 6px; cursor: pointer; font-size: 0.8em; font-weight: bold; transition: all 0.3s ease; text-align: center; }
+        
+        .btn-cr { border-color: #ffcc00; color: #ffcc00; }
+        .btn-cr:hover { background: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00; }
+        
+        .btn-track { border-color: #00f3ff; color: #00f3ff; }
+        .btn-track:hover, .btn-track.active { background: #00f3ff; color: #000; box-shadow: 0 0 8px #00f3ff; }
+        
+        .btn-off { border-color: #ff0055; color: #ff0055; }
+        .btn-off:hover { background: #ff0055; color: #fff; box-shadow: 0 0 8px #ff0055; }
 
-        /* 🔮 新增：系統訊息面板樣式 */
-        #log-panel {
-            flex-shrink: 0;
-            height: 150px;
-            border-top: 2px dashed #047a80;
-            padding-top: 10px;
-            display: flex;
-            flex-direction: column;
-        }
+        #log-panel { flex-shrink: 0; height: 150px; border-top: 2px dashed #047a80; padding-top: 10px; display: flex; flex-direction: column; }
         #log-panel h3 { margin: 0 0 10px 0; color: #047a80; font-size: 1em; }
-        #log-messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.9em;
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 5px;
-        }
+        #log-messages { flex-grow: 1; overflow-y: auto; font-family: monospace; font-size: 0.9em; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
         .log-entry { margin-bottom: 5px; border-bottom: 1px solid #111; padding-bottom: 5px; }
         .log-time { color: #888; margin-right: 8px; }
         .log-text { color: #ffcc00; }
@@ -128,7 +60,6 @@
             <div style="text-align:center; color:#047a80;">等待資料連線中...</div>
         </div>
         
-        <!-- 🔮 新增：取代 alert 的訊息顯示區 -->
         <div id="log-panel">
             <h3>系統訊息記錄</h3>
             <div id="log-messages"></div>
@@ -151,19 +82,18 @@
         }).addTo(map);
 
         const markers = {};
+        const polylines = {}; // 儲存每個使用者的軌跡物件
+        const historyListeners = {}; // 儲存軌跡的 Firebase 監聽器
+        
         const userListDiv = document.getElementById('user-list');
         const logMessagesDiv = document.getElementById('log-messages');
 
-        // 寫入系統訊息的輔助函式
         function addLogMessage(message) {
             const now = new Date();
             const timeString = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
-            
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `<span class="log-time">[${timeString}]</span><span class="log-text">${message}</span>`;
-            
-            // 將新訊息加到最上方
             logMessagesDiv.prepend(logEntry);
         }
 
@@ -180,9 +110,17 @@
                 const lng = user.lng;
                 const isActive = user.status === 'active';
                 const timeString = new Date(user.timestamp).toLocaleTimeString();
+                
+                // 確認該人員目前的軌跡顯示狀態，以便保持按鈕樣式
+                const isTracking = !!polylines[uid];
 
-                const actionButtonHTML = isActive 
-                    ? `<button class="call-cr-btn" data-uid="${uid}">🔊 呼叫他支援 CR</button>` 
+                // 產生 3 顆功能按鈕 (只有 Active 才顯示)
+                const actionGroupHTML = isActive 
+                    ? `<div class="action-group">
+                           <button class="action-btn btn-cr call-cr-btn" data-uid="${uid}">🔊 呼叫</button>
+                           <button class="action-btn btn-track track-btn ${isTracking ? 'active' : ''}" data-uid="${uid}">📍 ${isTracking ? '關閉軌跡' : '30分軌跡'}</button>
+                           <button class="action-btn btn-off force-off-btn" data-uid="${uid}">📴 強制離線</button>
+                       </div>` 
                     : ``;
 
                 listHTML += `
@@ -193,7 +131,7 @@
                         <div><span class="data-label">狀態:</span> <span class="data-value">${user.status.toUpperCase()}</span></div>
                         <div><span class="data-label">座標:</span> <span class="data-value">${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
                         <div><span class="data-label">更新:</span> <span class="data-value">${timeString}</span></div>
-                        ${actionButtonHTML}
+                        ${actionGroupHTML}
                     </div>
                 `;
 
@@ -216,42 +154,111 @@
                         map.removeLayer(markers[uid]);
                         delete markers[uid];
                     }
+                    // 如果人員離線，自動隱藏他的歷史軌跡
+                    if (polylines[uid]) { toggleTrajectory(uid, null); }
                 }
             }
             userListDiv.innerHTML = listHTML;
         });
 
-        // 監聽專屬呼叫按鈕
+        // 🔮 集中管理面板按鈕的點擊事件 (Event Delegation)
         userListDiv.addEventListener('click', (e) => {
-            if (e.target.classList.contains('call-cr-btn')) {
-                const targetUid = e.target.getAttribute('data-uid');
-                
-                set(ref(db, `tracking/alerts/targeted_cr/${targetUid}`), {
-                    timestamp: Date.now(),
-                    from: '指揮中心'
-                });
-                
-                const originalText = e.target.innerText;
-                e.target.innerText = "✅ 已發送指令";
-                addLogMessage(`已向 ${targetUid} 發送專屬 CR 呼叫`);
-                setTimeout(() => e.target.innerText = originalText, 2000);
+            const targetBtn = e.target;
+            const targetUid = targetBtn.getAttribute('data-uid');
+            if (!targetUid) return;
+
+            // 1. 呼叫 CR
+            if (targetBtn.classList.contains('call-cr-btn')) {
+                set(ref(db, `tracking/alerts/targeted_cr/${targetUid}`), { timestamp: Date.now(), from: '指揮中心' });
+                const originalText = targetBtn.innerText;
+                targetBtn.innerText = "✅ 已發送";
+                addLogMessage(`向 ${targetUid} 發送專屬 CR 呼叫`);
+                setTimeout(() => targetBtn.innerText = originalText, 2000);
+            }
+            
+            // 2. 強制離線
+            else if (targetBtn.classList.contains('force-off-btn')) {
+                if(confirm(`⚠️ 確定要強制切斷 ${targetUid} 的回報連線嗎？`)){
+                    set(ref(db, `tracking/commands/${targetUid}/force_offline`), { timestamp: Date.now(), from: '指揮中心' });
+                    addLogMessage(`🚨 已強制切斷 ${targetUid} 的連線`);
+                }
+            }
+
+            // 3. 顯示/隱藏軌跡
+            else if (targetBtn.classList.contains('track-btn')) {
+                toggleTrajectory(targetUid, targetBtn);
             }
         });
 
-        // 監聽全局趣味廣播 (移除 alert，改用畫面訊息欄)
+        // 🔮 切換 30 分鐘歷史軌跡的獨立邏輯
+        function toggleTrajectory(uid, btnElement) {
+            if (polylines[uid]) {
+                // 關閉軌跡
+                map.removeLayer(polylines[uid]);
+                delete polylines[uid];
+                
+                // 取消 Firebase 監聽，節省效能
+                if (historyListeners[uid]) {
+                    historyListeners[uid](); // 執行 Firebase 返回的取消函數
+                    delete historyListeners[uid];
+                }
+                
+                if(btnElement) {
+                    btnElement.innerText = "📍 30分軌跡";
+                    btnElement.classList.remove("active");
+                }
+                addLogMessage(`已隱藏 ${uid} 的移動軌跡`);
+
+            } else {
+                // 開啟軌跡
+                if(btnElement) {
+                    btnElement.innerText = "❌ 關閉軌跡";
+                    btnElement.classList.add("active");
+                }
+                addLogMessage(`正在繪製 ${uid} 過去 30 分鐘的軌跡...`);
+
+                const historyRef = ref(db, `tracking/history/${uid}`);
+                
+                // 使用 onValue，這樣只要使用者繼續移動，軌跡線就會「即時延長」
+                const unsubscribe = onValue(historyRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
+
+                    const thirtyMinsAgo = Date.now() - 30 * 60 * 1000;
+                    const latlngs = [];
+
+                    // 過濾出 30 分鐘內的點
+                    for (const timestamp in data) {
+                        if (parseInt(timestamp) > thirtyMinsAgo) {
+                            latlngs.push([data[timestamp].lat, data[timestamp].lng]);
+                        }
+                    }
+
+                    // 繪製發光的科技感虛線
+                    if (polylines[uid]) {
+                        polylines[uid].setLatLngs(latlngs);
+                    } else if (latlngs.length > 0) {
+                        polylines[uid] = L.polyline(latlngs, {
+                            color: '#00f3ff', weight: 4, opacity: 0.7, dashArray: '10, 10'
+                        }).addTo(map);
+                    }
+                });
+                
+                // 把取消函數存起來，以便關閉軌跡時切斷監聽
+                historyListeners[uid] = unsubscribe; 
+            }
+        }
+
+        // 監聽全局趣味廣播
         const crRef = ref(db, 'tracking/alerts/fun_cr');
         let initialLoadCR = true;
-        
         onValue(crRef, (snapshot) => {
             const data = snapshot.val();
             if (initialLoadCR) { initialLoadCR = false; return; }
             if (data) {
-                // 語音照舊發聲
                 const utterance = new SpeechSynthesisUtterance('請支援、吸、阿'); 
                 utterance.lang = 'zh-TW'; utterance.rate = 0.9; utterance.pitch = 1.2;    
                 window.speechSynthesis.speak(utterance);
-                
-                // 畫面改為寫入系統訊息區
                 addLogMessage(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`);
             }
         });

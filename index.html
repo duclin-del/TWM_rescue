@@ -50,11 +50,7 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
         }
-        button:hover {
-            background-color: #00f3ff;
-            color: #000;
-            box-shadow: 0 0 10px #00f3ff;
-        }
+        button:hover { background-color: #00f3ff; color: #000; box-shadow: 0 0 10px #00f3ff; }
         .warning-btn { border-color: #ff0055; color: #ff0055; }
         .warning-btn:hover { background-color: #ff0055; color: #fff; box-shadow: 0 0 10px #ff0055; }
         .cr-btn { border-color: #ffcc00; color: #ffcc00; }
@@ -99,6 +95,7 @@
     const alertSound = document.getElementById('alertSound');
 
     let watchId = null;
+    let lastHistoryTime = 0; // 軌跡紀錄的時間點控制
 
     // 啟動追蹤
     startBtn.addEventListener('click', () => {
@@ -106,31 +103,41 @@
         if (!uid) return alert('請輸入使用者 ID');
         if (!navigator.geolocation) return alert('您的設備不支援地理定位');
 
-        // 💡 關鍵解鎖機制：在點擊的瞬間，用極小的音量播放並馬上暫停，藉此騙過瀏覽器取得喇叭權限
+        // 解鎖瀏覽器音效限制
         alertSound.volume = 0.01;
         alertSound.play().then(() => {
             alertSound.pause();
             alertSound.currentTime = 0;
-            alertSound.volume = 1; // 恢復正常音量
+            alertSound.volume = 1; 
         }).catch(e => console.log("音效解鎖失敗", e));
 
-        // 💡 關鍵解鎖機制：偷偷唸一段空白語音，解鎖 SpeechSynthesis 權限
         const unlockUtterance = new SpeechSynthesisUtterance('');
         window.speechSynthesis.speak(unlockUtterance);
 
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
+        lastHistoryTime = 0; // 重置軌跡計時
         
         watchId = navigator.geolocation.watchPosition(
             (position) => {
                 const { latitude, longitude, accuracy } = position.coords;
+                const currentTime = Date.now();
                 const timestamp = new Date().toISOString();
                 
                 statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m`;
 
+                // 1. 更新即時單點狀態
                 set(ref(db, `tracking/users/${uid}`), {
                     lat: latitude, lng: longitude, timestamp: timestamp, status: "active"
                 });
+
+                // 2. 歷史軌跡節流 (每 30 秒才記錄一個點，避免過度密集)
+                if (currentTime - lastHistoryTime > 30000) {
+                    lastHistoryTime = currentTime;
+                    set(ref(db, `tracking/history/${uid}/${currentTime}`), {
+                        lat: latitude, lng: longitude
+                    });
+                }
             },
             (error) => { statusPanel.innerHTML = `錯誤：${error.message}`; },
             { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
@@ -139,7 +146,7 @@
         listenForWarnings(uid);
     });
 
-    // 停止追蹤
+    // 停止追蹤 (可由使用者手動點擊，或被指揮中心強制觸發)
     stopBtn.addEventListener('click', () => {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         startBtn.style.display = 'inline-block';
@@ -150,7 +157,6 @@
         update(ref(db, `tracking/users/${uid}`), { status: "offline" });
     });
 
-    // 發送警報與廣播
     warnBtn.addEventListener('click', () => {
         set(ref(db, `tracking/alerts/global`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
         statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送緊急警告訊號！</span>`;
@@ -189,8 +195,27 @@
                 
                 document.body.style.backgroundColor = '#665000';
                 setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
-                
                 statusPanel.innerHTML += `<br><span style="color:#ffcc00; font-weight:bold;">收到指揮中心專屬指令：請支援 CR！</span>`;
+            }
+        });
+
+        // 🔮 新增：監聽指揮中心的「強制離線」指令
+        const offlineCmdRef = ref(db, `tracking/commands/${currentUid}/force_offline`);
+        let initialLoadOffline = true;
+        onValue(offlineCmdRef, (snapshot) => {
+            const data = snapshot.val();
+            if (initialLoadOffline) { initialLoadOffline = false; return; }
+            if (data) {
+                // 自動觸發停止追蹤按鈕
+                stopBtn.click();
+                
+                const utterance = new SpeechSynthesisUtterance('指揮中心已強制關閉您的通報系統');
+                utterance.lang = 'zh-TW'; 
+                window.speechSynthesis.speak(utterance);
+                
+                document.body.style.backgroundColor = '#550000';
+                setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
+                statusPanel.innerHTML += `<br><span style="color:#ff0055; font-weight:bold;">⚠️ 您已被指揮中心強制離線！</span>`;
             }
         });
     }

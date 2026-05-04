@@ -1,6 +1,6 @@
 // firebase-config.js
 
-// 匯出你專屬的 Firebase 網頁應用程式設定
+// 匯出您專屬的 Firebase 網頁應用程式設定
 export const firebaseConfig = {
   apiKey: "AIzaSyDOnBVT-O-IRMKFBquzYLPsx9C94cMQ6AE",
   authDomain: "twmgame-92186.firebaseapp.com",

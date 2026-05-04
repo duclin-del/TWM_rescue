@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>災防通報：即時軌跡與音訊警報系統</title>
     <style>
-        /* Tron Style UI */
         body {
             background-color: #0a0a0a;
             color: #00f3ff;
@@ -56,24 +55,10 @@
             color: #000;
             box-shadow: 0 0 10px #00f3ff;
         }
-        .warning-btn {
-            border-color: #ff0055;
-            color: #ff0055;
-        }
-        .warning-btn:hover {
-            background-color: #ff0055;
-            color: #fff;
-            box-shadow: 0 0 10px #ff0055;
-        }
-        .cr-btn {
-            border-color: #ffcc00;
-            color: #ffcc00;
-        }
-        .cr-btn:hover {
-            background-color: #ffcc00;
-            color: #000;
-            box-shadow: 0 0 10px #ffcc00;
-        }
+        .warning-btn { border-color: #ff0055; color: #ff0055; }
+        .warning-btn:hover { background-color: #ff0055; color: #fff; box-shadow: 0 0 10px #ff0055; }
+        .cr-btn { border-color: #ffcc00; color: #ffcc00; }
+        .cr-btn:hover { background-color: #ffcc00; color: #000; box-shadow: 0 0 10px #ffcc00; }
     </style>
 </head>
 <body>
@@ -94,11 +79,9 @@
     <button id="warnBtn" class="warning-btn">🚨 發送緊急警報</button>
     <button id="crBtn" class="cr-btn">🔊 請支援 CR</button>
     
-    <!-- 隱藏的警告音訊元件 (用於緊急警報) -->
     <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
-<!-- Firebase 模組化載入 -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -117,11 +100,23 @@
 
     let watchId = null;
 
-    // 啟動 GPS 追蹤並同步至 Firebase
+    // 啟動追蹤
     startBtn.addEventListener('click', () => {
         const uid = userIdInput.value.trim();
         if (!uid) return alert('請輸入使用者 ID');
         if (!navigator.geolocation) return alert('您的設備不支援地理定位');
+
+        // 💡 關鍵解鎖機制：在點擊的瞬間，用極小的音量播放並馬上暫停，藉此騙過瀏覽器取得喇叭權限
+        alertSound.volume = 0.01;
+        alertSound.play().then(() => {
+            alertSound.pause();
+            alertSound.currentTime = 0;
+            alertSound.volume = 1; // 恢復正常音量
+        }).catch(e => console.log("音效解鎖失敗", e));
+
+        // 💡 關鍵解鎖機制：偷偷唸一段空白語音，解鎖 SpeechSynthesis 權限
+        const unlockUtterance = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(unlockUtterance);
 
         startBtn.style.display = 'none';
         stopBtn.style.display = 'inline-block';
@@ -133,17 +128,11 @@
                 
                 statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m`;
 
-                const locationData = {
-                    lat: latitude,
-                    lng: longitude,
-                    timestamp: timestamp,
-                    status: "active"
-                };
-                set(ref(db, `tracking/users/${uid}`), locationData);
+                set(ref(db, `tracking/users/${uid}`), {
+                    lat: latitude, lng: longitude, timestamp: timestamp, status: "active"
+                });
             },
-            (error) => {
-                statusPanel.innerHTML = `錯誤：${error.message}`;
-            },
+            (error) => { statusPanel.innerHTML = `錯誤：${error.message}`; },
             { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
         );
 
@@ -161,42 +150,47 @@
         update(ref(db, `tracking/users/${uid}`), { status: "offline" });
     });
 
-    // 雙向緊急警報
+    // 發送警報與廣播
     warnBtn.addEventListener('click', () => {
-        const timestamp = new Date().getTime();
-        set(ref(db, `tracking/alerts/global`), {
-            triggerBy: userIdInput.value.trim(),
-            timestamp: timestamp
-        });
+        set(ref(db, `tracking/alerts/global`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
         statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送緊急警告訊號！</span>`;
     });
 
-    // 趣味廣播：請支援 CR
     crBtn.addEventListener('click', () => {
-        const timestamp = new Date().getTime();
-        set(ref(db, `tracking/alerts/fun_cr`), {
-            triggerBy: userIdInput.value.trim(),
-            timestamp: timestamp
-        });
+        set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: userIdInput.value.trim(), timestamp: Date.now() });
         statusPanel.innerHTML += `<br><span style="color:#ffcc00">已發送「請支援 CR」廣播！</span>`;
     });
 
-    // 監聽遠端緊急警告訊號
     function listenForWarnings(currentUid) {
+        // 監聽全局緊急警告
         const alertRef = ref(db, 'tracking/alerts/global');
-        let initialLoad = true;
-
+        let initialLoadAlert = true;
         onValue(alertRef, (snapshot) => {
             const data = snapshot.val();
-            if (initialLoad) {
-                initialLoad = false;
-                return;
-            }
+            if (initialLoadAlert) { initialLoadAlert = false; return; }
             if (data && data.triggerBy !== currentUid) {
-                alertSound.play().catch(e => console.log('音訊播放需使用者互動解鎖:', e));
+                alertSound.play();
                 document.body.style.backgroundColor = '#500';
                 setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
                 statusPanel.innerHTML += `<br><span style="color:#ff0055">收到來自 ${data.triggerBy} 的警告！</span>`;
+            }
+        });
+
+        // 監聽指揮中心的「專屬 CR 呼叫」
+        const myCrRef = ref(db, `tracking/alerts/targeted_cr/${currentUid}`);
+        let initialLoadMyCr = true;
+        onValue(myCrRef, (snapshot) => {
+            const data = snapshot.val();
+            if (initialLoadMyCr) { initialLoadMyCr = false; return; }
+            if (data) {
+                const utterance = new SpeechSynthesisUtterance('指揮中心呼叫，請支援、吸、阿');
+                utterance.lang = 'zh-TW'; utterance.rate = 1.1;
+                window.speechSynthesis.speak(utterance);
+                
+                document.body.style.backgroundColor = '#665000';
+                setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
+                
+                statusPanel.innerHTML += `<br><span style="color:#ffcc00; font-weight:bold;">收到指揮中心專屬指令：請支援 CR！</span>`;
             }
         });
     }

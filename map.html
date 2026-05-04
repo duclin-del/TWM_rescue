@@ -26,23 +26,17 @@
             box-shadow: inset -5px 0 15px rgba(0, 243, 255, 0.2);
             background: #000;
         }
-        #map {
-            width: 100%;
-            height: 100%;
-            background: #000;
-        }
-        
-        .leaflet-tile-pane {
-            filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-        }
+        #map { width: 100%; height: 100%; background: #000; }
+        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
 
         #sidebar {
             flex: 1;
             background: rgba(0, 20, 30, 0.95);
             padding: 20px;
             box-sizing: border-box;
-            overflow-y: auto;
-            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            min-width: 320px;
         }
         h2 {
             text-transform: uppercase;
@@ -51,7 +45,14 @@
             padding-bottom: 10px;
             margin-top: 0;
             text-align: center;
+            flex-shrink: 0;
         }
+        #user-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        
         .user-card {
             background: rgba(0, 0, 0, 0.6);
             border: 1px solid #047a80;
@@ -59,16 +60,10 @@
             padding: 15px;
             margin-bottom: 15px;
             transition: all 0.3s ease;
-            position: relative;
         }
-        .user-card:hover {
-            border-color: #00f3ff;
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
-        }
-        .user-card.offline {
-            border-color: #555;
-            color: #888;
-        }
+        .user-card:hover { border-color: #00f3ff; box-shadow: 0 0 10px rgba(0, 243, 255, 0.5); }
+        .user-card.offline { border-color: #555; color: #888; }
+        
         .status-dot {
             display: inline-block;
             width: 10px;
@@ -78,14 +73,10 @@
             margin-right: 8px;
             box-shadow: 0 0 8px #00f3ff;
         }
-        .offline .status-dot {
-            background-color: #555;
-            box-shadow: none;
-        }
+        .offline .status-dot { background-color: #555; box-shadow: none; }
         .data-label { font-size: 0.85em; color: #047a80; }
         .data-value { font-family: monospace; font-size: 1.1em; }
 
-        /* 專屬呼叫按鈕樣式 */
         .call-cr-btn {
             background: transparent;
             border: 1px solid #ffcc00;
@@ -99,11 +90,30 @@
             display: block;
             width: 100%;
         }
-        .call-cr-btn:hover {
-            background: #ffcc00;
-            color: #000;
-            box-shadow: 0 0 8px #ffcc00;
+        .call-cr-btn:hover { background: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00; }
+
+        /* 🔮 新增：系統訊息面板樣式 */
+        #log-panel {
+            flex-shrink: 0;
+            height: 150px;
+            border-top: 2px dashed #047a80;
+            padding-top: 10px;
+            display: flex;
+            flex-direction: column;
         }
+        #log-panel h3 { margin: 0 0 10px 0; color: #047a80; font-size: 1em; }
+        #log-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .log-entry { margin-bottom: 5px; border-bottom: 1px solid #111; padding-bottom: 5px; }
+        .log-time { color: #888; margin-right: 8px; }
+        .log-text { color: #ffcc00; }
     </style>
 </head>
 <body>
@@ -116,6 +126,12 @@
         <h2>即時動態監控 (Analysis)</h2>
         <div id="user-list">
             <div style="text-align:center; color:#047a80;">等待資料連線中...</div>
+        </div>
+        
+        <!-- 🔮 新增：取代 alert 的訊息顯示區 -->
+        <div id="log-panel">
+            <h3>系統訊息記錄</h3>
+            <div id="log-messages"></div>
         </div>
     </div>
 
@@ -136,8 +152,22 @@
 
         const markers = {};
         const userListDiv = document.getElementById('user-list');
+        const logMessagesDiv = document.getElementById('log-messages');
 
-        // 監聽人員座標移動並生成卡片
+        // 寫入系統訊息的輔助函式
+        function addLogMessage(message) {
+            const now = new Date();
+            const timeString = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${timeString}]</span><span class="log-text">${message}</span>`;
+            
+            // 將新訊息加到最上方
+            logMessagesDiv.prepend(logEntry);
+        }
+
+        // 監聽人員座標移動
         const usersRef = ref(db, 'tracking/users');
         onValue(usersRef, (snapshot) => {
             const data = snapshot.val();
@@ -151,7 +181,6 @@
                 const isActive = user.status === 'active';
                 const timeString = new Date(user.timestamp).toLocaleTimeString();
 
-                // 產生專屬呼叫按鈕
                 const actionButtonHTML = isActive 
                     ? `<button class="call-cr-btn" data-uid="${uid}">🔊 呼叫他支援 CR</button>` 
                     : ``;
@@ -192,12 +221,11 @@
             userListDiv.innerHTML = listHTML;
         });
 
-        // 監聽右側面板的專屬呼叫按鈕點擊
+        // 監聽專屬呼叫按鈕
         userListDiv.addEventListener('click', (e) => {
             if (e.target.classList.contains('call-cr-btn')) {
                 const targetUid = e.target.getAttribute('data-uid');
                 
-                // 寫入該人員的專屬頻道
                 set(ref(db, `tracking/alerts/targeted_cr/${targetUid}`), {
                     timestamp: Date.now(),
                     from: '指揮中心'
@@ -205,21 +233,26 @@
                 
                 const originalText = e.target.innerText;
                 e.target.innerText = "✅ 已發送指令";
+                addLogMessage(`已向 ${targetUid} 發送專屬 CR 呼叫`);
                 setTimeout(() => e.target.innerText = originalText, 2000);
             }
         });
 
-        // 監聽全局趣味廣播
+        // 監聽全局趣味廣播 (移除 alert，改用畫面訊息欄)
         const crRef = ref(db, 'tracking/alerts/fun_cr');
         let initialLoadCR = true;
+        
         onValue(crRef, (snapshot) => {
             const data = snapshot.val();
             if (initialLoadCR) { initialLoadCR = false; return; }
             if (data) {
+                // 語音照舊發聲
                 const utterance = new SpeechSynthesisUtterance('請支援、吸、阿'); 
                 utterance.lang = 'zh-TW'; utterance.rate = 0.9; utterance.pitch = 1.2;    
                 window.speechSynthesis.speak(utterance);
-                setTimeout(() => { alert(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`); }, 100);
+                
+                // 畫面改為寫入系統訊息區
+                addLogMessage(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`);
             }
         });
     </script>

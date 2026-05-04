@@ -13,6 +13,18 @@
         .warning-btn { border-color: #ff0055; color: #ff0055; }
         .cr-btn { border-color: #ffcc00; color: #ffcc00; }
         .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 5px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
+        
+        /* 🔮 新增：環境狀態回報按鈕區塊 */
+        .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
+        .env-btn { border-color: #555; color: #888; padding: 8px 2px; font-size: 0.8em; margin: 0; }
+        
+        /* 針對不同狀態配置專屬啟動顏色 */
+        .env-btn.active[data-status="安全"] { background: #00ffaa; border-color: #00ffaa; color: #000; box-shadow: 0 0 8px #00ffaa;}
+        .env-btn.active[data-status="警戒"] { background: #ffcc00; border-color: #ffcc00; color: #000; box-shadow: 0 0 8px #ffcc00;}
+        .env-btn.active[data-status="車輛不通"] { background: #ff5500; border-color: #ff5500; color: #fff; box-shadow: 0 0 8px #ff5500;}
+        .env-btn.active[data-status="有傷患"] { background: #ff0055; border-color: #ff0055; color: #fff; box-shadow: 0 0 8px #ff0055;}
+        .env-btn.active[data-status="前往集合"] { background: #0088ff; border-color: #0088ff; color: #fff; box-shadow: 0 0 8px #0088ff;}
+        .env-btn.active[data-status="路坍"] { background: #995522; border-color: #995522; color: #fff; box-shadow: 0 0 8px #995522;}
     </style>
 </head>
 <body>
@@ -20,12 +32,29 @@
     <h2 style="margin-top:0;">通報終端</h2>
     <div>ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px; width:60%;"></div>
     <div class="data-panel" id="statusPanel">狀態：待命<br>緯度：--<br>經度：--</div>
+    
     <button id="startBtn">啟動追蹤</button>
     <button id="stopBtn" style="display:none;">停止追蹤</button><br>
     
     <div id="controlPanel" style="display:none; margin-top:10px;">
-        <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
-        <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
+        <!-- 🚨 原有緊急與呼叫區塊 -->
+        <div style="margin-bottom: 15px;">
+            <button id="warnBtn" class="warning-btn">🚨 發送警報</button>
+            <button id="crBtn" class="cr-btn">🔊 支援 CR</button>
+        </div>
+        
+        <!-- 🔮 新增：現場環境狀態區塊 -->
+        <div style="border-top: 1px dashed #047a80; padding-top: 10px;">
+            <div style="font-size:0.85em; color:#00f3ff; margin-bottom:5px;">現場環境回報 (點擊切換)</div>
+            <div class="env-grid">
+                <button class="env-btn" data-status="安全">安全</button>
+                <button class="env-btn" data-status="警戒">警戒</button>
+                <button class="env-btn" data-status="車輛不通">車不通</button>
+                <button class="env-btn" data-status="有傷患">有傷患</button>
+                <button class="env-btn" data-status="前往集合">去集合</button>
+                <button class="env-btn" data-status="路坍">路坍</button>
+            </div>
+        </div>
     </div>
     
     <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航</a>
@@ -49,9 +78,9 @@
     };
 
     let watchId = null, lastHistoryTime = 0, wakeLock = null;
-    let batteryInfo = null; // 預設為 null，若不支援則維持 null
+    let batteryInfo = null; 
+    let currentEnvStatus = ""; // 🔮 新增：用來記錄當前選擇的環境狀態
 
-    // 電量監控 (排除 iOS 不支援的情況)
     if ('getBattery' in navigator) {
         navigator.getBattery().then(bat => {
             batteryInfo = { level: Math.round(bat.level * 100), charging: bat.charging };
@@ -66,6 +95,32 @@
             try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
     }
+
+    // 🔮 新增：環境狀態按鈕點擊邏輯 (Toggle切換)
+    document.querySelectorAll('.env-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const status = e.target.getAttribute('data-status');
+            
+            // 如果點擊的是原本已經啟動的狀態，則取消它；否則切換為新狀態
+            if (currentEnvStatus === status) {
+                currentEnvStatus = ""; 
+            } else {
+                currentEnvStatus = status;
+            }
+
+            // 更新 UI 按鈕外觀
+            document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
+            if (currentEnvStatus) {
+                e.target.classList.add('active');
+            }
+
+            // 將狀態即時寫入 Firebase
+            const uid = ui.userId.value.trim();
+            if (uid) {
+                update(ref(db, `tracking/users/${uid}`), { envStatus: currentEnvStatus });
+            }
+        });
+    });
 
     ui.start.addEventListener('click', async () => {
         const uid = ui.userId.value.trim();
@@ -86,10 +141,10 @@
             if (batteryInfo) statusHtml += `<br>電量：${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
             ui.status.innerHTML = statusHtml;
             
-            // 準備上傳資料
             let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
             if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
             
+            // 由於使用 update，若目前有環境狀態，不會被蓋掉
             update(ref(db, `tracking/users/${uid}`), payload);
             
             if (now - lastHistoryTime > 60000) {
@@ -106,7 +161,12 @@
         if (wakeLock) wakeLock.release().then(() => wakeLock = null);
         ui.silent.pause();
         ui.start.style.display = 'inline-block'; ui.stop.style.display = 'none'; ui.ctrl.style.display = 'none'; ui.nav.style.display = 'none';
-        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false });
+        
+        // 離線時，同時清空環境狀態按鈕 UI 與數值
+        currentEnvStatus = "";
+        document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
+        
+        update(ref(db, `tracking/users/${ui.userId.value.trim()}`), { status: "offline", isAlarm: false, needCR: false, envStatus: "" });
     });
 
     document.getElementById('warnBtn').onclick = () => {
@@ -120,7 +180,7 @@
         const uid = ui.userId.value.trim();
         update(ref(db, `tracking/users/${uid}`), { needCR: true });
         set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
-        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); // 15秒後自動取消CR標籤
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
     };
 
     function playAlert(msg, color) {

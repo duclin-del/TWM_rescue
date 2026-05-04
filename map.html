@@ -32,7 +32,6 @@
             background: #000;
         }
         
-        /* 🔮 核心魔法：將白底的中文 OSM 地圖，反轉成暗黑科技風 */
         .leaflet-tile-pane {
             filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
         }
@@ -60,6 +59,7 @@
             padding: 15px;
             margin-bottom: 15px;
             transition: all 0.3s ease;
+            position: relative;
         }
         .user-card:hover {
             border-color: #00f3ff;
@@ -84,6 +84,26 @@
         }
         .data-label { font-size: 0.85em; color: #047a80; }
         .data-value { font-family: monospace; font-size: 1.1em; }
+
+        /* 專屬呼叫按鈕樣式 */
+        .call-cr-btn {
+            background: transparent;
+            border: 1px solid #ffcc00;
+            color: #ffcc00;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: block;
+            width: 100%;
+        }
+        .call-cr-btn:hover {
+            background: #ffcc00;
+            color: #000;
+            box-shadow: 0 0 8px #ffcc00;
+        }
     </style>
 </head>
 <body>
@@ -101,25 +121,23 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // 視角中心預設在台灣
         const map = L.map('map').setView([23.6978, 120.9605], 7);
 
-        // 🗺️ 改用 OpenStreetMap (OSM) 標準圖資，擁有最豐富的中文區域與地名
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19
         }).addTo(map);
 
         const markers = {};
         const userListDiv = document.getElementById('user-list');
 
-        // 監聽人員座標移動
+        // 監聽人員座標移動並生成卡片
         const usersRef = ref(db, 'tracking/users');
         onValue(usersRef, (snapshot) => {
             const data = snapshot.val();
@@ -133,6 +151,11 @@
                 const isActive = user.status === 'active';
                 const timeString = new Date(user.timestamp).toLocaleTimeString();
 
+                // 產生專屬呼叫按鈕
+                const actionButtonHTML = isActive 
+                    ? `<button class="call-cr-btn" data-uid="${uid}">🔊 呼叫他支援 CR</button>` 
+                    : ``;
+
                 listHTML += `
                     <div class="user-card ${isActive ? '' : 'offline'}">
                         <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">
@@ -141,6 +164,7 @@
                         <div><span class="data-label">狀態:</span> <span class="data-value">${user.status.toUpperCase()}</span></div>
                         <div><span class="data-label">座標:</span> <span class="data-value">${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
                         <div><span class="data-label">更新:</span> <span class="data-value">${timeString}</span></div>
+                        ${actionButtonHTML}
                     </div>
                 `;
 
@@ -168,32 +192,34 @@
             userListDiv.innerHTML = listHTML;
         });
 
-        // 監聽趣味廣播「請支援 CR」
+        // 監聽右側面板的專屬呼叫按鈕點擊
+        userListDiv.addEventListener('click', (e) => {
+            if (e.target.classList.contains('call-cr-btn')) {
+                const targetUid = e.target.getAttribute('data-uid');
+                
+                // 寫入該人員的專屬頻道
+                set(ref(db, `tracking/alerts/targeted_cr/${targetUid}`), {
+                    timestamp: Date.now(),
+                    from: '指揮中心'
+                });
+                
+                const originalText = e.target.innerText;
+                e.target.innerText = "✅ 已發送指令";
+                setTimeout(() => e.target.innerText = originalText, 2000);
+            }
+        });
+
+        // 監聽全局趣味廣播
         const crRef = ref(db, 'tracking/alerts/fun_cr');
         let initialLoadCR = true;
-
         onValue(crRef, (snapshot) => {
             const data = snapshot.val();
-            
-            if (initialLoadCR) {
-                initialLoadCR = false;
-                return;
-            }
-
+            if (initialLoadCR) { initialLoadCR = false; return; }
             if (data) {
-                console.log("收到來自", data.triggerBy, "的 CR 支援請求");
-                
-                // 使用瀏覽器內建的語音合成
                 const utterance = new SpeechSynthesisUtterance('請支援、吸、阿'); 
-                utterance.lang = 'zh-TW'; 
-                utterance.rate = 0.9;     
-                utterance.pitch = 1.2;    
-                
+                utterance.lang = 'zh-TW'; utterance.rate = 0.9; utterance.pitch = 1.2;    
                 window.speechSynthesis.speak(utterance);
-                
-                setTimeout(() => {
-                    alert(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`);
-                }, 100);
+                setTimeout(() => { alert(`收到來自 [${data.triggerBy}] 的廣播：請支援 CR！`); }, 100);
             }
         });
     </script>

@@ -6,113 +6,125 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin: 0; background: #0a0a0a; color: #00f3ff; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        #map-container { flex: 3; position: relative; border-right: 2px solid #00f3ff; }
-        #map { width: 100%; height: 100%; background: #000; }
-        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%); transition: filter 0.4s ease; }
+        /* 基礎全螢幕與地圖設定 */
+        body { margin: 0; background: #05090c; color: #00f3ff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #map-container { flex: 3; position: relative; border-right: 1px solid #047a80; box-shadow: inset -5px 0 15px rgba(0,0,0,0.5); }
+        #map { width: 100%; height: 100%; background: #020405; }
+        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%); transition: filter 0.5s ease; }
         #map.real-world-mode .leaflet-tile-pane { filter: none !important; }
         
-        #sidebar { flex: 1; background: rgba(0, 20, 30, 0.95); padding: 15px; display: flex; flex-direction: column; min-width: 400px; }
+        /* 側邊欄高科技擬態設計 */
+        #sidebar { flex: 1; background: linear-gradient(135deg, #020608 0%, #05131a 100%); padding: 15px; display: flex; flex-direction: column; min-width: 420px; z-index: 10; box-shadow: -5px 0 15px rgba(0,243,255,0.05); }
         
-        .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #047a80; padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 5px; }
-        .toolbar button { background: transparent; border: 1px solid #00f3ff; color: #00f3ff; padding: 5px 8px; cursor: pointer; border-radius: 3px; font-weight: bold; }
-        .toolbar button:hover { background: #00f3ff; color: #000; }
-        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; }
-        .btn-danger:hover { background: #ff0055 !important; color: #fff !important; }
+        /* 頂部工具列 */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(4, 122, 128, 0.5); padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 8px; }
+        .toolbar button { background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 10px; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 0.85em; transition: all 0.2s; letter-spacing: 1px;}
+        .toolbar button:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px rgba(0,243,255,0.5); }
+        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; background: rgba(255, 0, 85, 0.05) !important;}
+        .btn-danger:hover { background: #ff0055 !important; color: #fff !important; box-shadow: 0 0 15px rgba(255,0,85,0.6) !important;}
         .btn-map-toggle { border-color: #ffaa00 !important; color: #ffaa00 !important; }
         .btn-map-toggle:hover { background: #ffaa00 !important; color: #000 !important; }
         .btn-export { border-color: #00ffaa !important; color: #00ffaa !important; }
         .btn-export:hover { background: #00ffaa !important; color: #000 !important; }
-        
-        .btn-ai-report { border-color: #bb00ff !important; color: #bb00ff !important; background: rgba(187, 0, 255, 0.1); }
-        .btn-ai-report:hover { background: #bb00ff !important; color: #fff !important; box-shadow: 0 0 10px #bb00ff; }
+        .btn-ai-report { border-color: #bb00ff !important; color: #bb00ff !important; background: rgba(187, 0, 255, 0.1) !important; }
+        .btn-ai-report:hover { background: #bb00ff !important; color: #fff !important; box-shadow: 0 0 15px rgba(187,0,255,0.6) !important; }
 
-        .user-card { background: rgba(0,0,0,0.6); border: 1px solid #047a80; padding: 8px 10px; margin-bottom: 8px; font-size: 0.85em; border-radius: 4px; }
-        .user-card:hover { border-color: #00f3ff; }
+        /* 人員資訊卡片 (優化層級與色彩) */
+        .user-card { background: rgba(0, 0, 0, 0.4); border-left: 3px solid #005577; padding: 12px; margin-bottom: 10px; border-radius: 0 6px 6px 0; transition: all 0.3s ease; position: relative; overflow: hidden; }
+        .user-card:hover { border-left-color: #00f3ff; background: rgba(0, 20, 30, 0.6); }
+        .user-card.alarm-active { border-left-color: #ff0055; background: linear-gradient(90deg, rgba(255,0,85,0.15) 0%, rgba(0,0,0,0.4) 100%); }
         
-        .header-row { display: flex; align-items: center; font-size: 1.1em; font-weight: bold; margin-bottom: 4px; flex-wrap: wrap; gap: 4px; }
-        .info-row { color: #aaa; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
+        .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 6px; flex-wrap: wrap; gap: 6px; }
         
-        .cr-tag { background: #ffcc00; color: #000; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; vertical-align: middle; }
-        .env-tag { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; font-weight: bold; vertical-align: middle; }
-        .env-safe { background: #00ffaa; color: #000; }
-        .env-alert { background: #ffcc00; color: #000; }
-        .env-blocked { background: #ff5500; color: #fff; }
-        .env-casualty { background: #ff0055; color: #fff; }
-        .env-rally { background: #0088ff; color: #fff; }
-        .env-collapse { background: #995522; color: #fff; }
-
-        .flash-name { color: #ff0055; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
+        /* 點擊追蹤人名特效 */
+        .user-name { font-weight: bold; color: #00f3ff; cursor: crosshair; transition: all 0.2s; padding: 2px 6px; border-radius: 4px; }
+        .user-name:hover { background: rgba(0, 243, 255, 0.2); text-shadow: 0 0 8px #00f3ff; }
+        
+        .info-row { color: #888; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em; font-family: monospace; }
+        
+        /* 標籤視覺分級：普通用線條，嚴重用實體色塊 */
+        .tag-outline { border: 1px solid; border-radius: 4px; padding: 2px 6px; font-size: 0.7em; font-weight: normal; background: transparent; }
+        .tag-solid { border-radius: 4px; padding: 2px 6px; font-size: 0.75em; font-weight: bold; color: #fff; box-shadow: 0 0 8px currentColor; }
+        
+        .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
         
-        .battery-badge { font-size: 0.8em; padding: 1px 5px; border-radius: 3px; border: 1px solid #00f3ff; margin-left: auto; }
-        .battery-low { border-color: #ff0055; color: #ff0055; animation: blinkFast 1s infinite alternate; }
+        .battery-badge { font-size: 0.8em; padding: 2px 6px; border-radius: 4px; margin-left: auto; font-family: monospace; }
+        .battery-normal { border: 1px solid #005577; color: #00aaff; }
+        .battery-low { background: #ff0055; color: #fff; border: 1px solid #ff0055; animation: blinkFast 1s infinite alternate; font-weight: bold; box-shadow: 0 0 8px #ff0055; }
 
-        .action-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-        .action-btn { flex: 1 1 18%; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 4px 0; cursor: pointer; border-radius: 3px; text-align: center; white-space: nowrap; }
-        .btn-alert { border-color: #ff0055; color: #ff0055; }
-        .btn-call { border-color: #ffcc00; color: #ffcc00; }
-        .btn-path { border-color: #00ffaa; color: #00ffaa; }
-        .btn-off { border-color: #888; color: #888; }
-        .btn-photo { border-color: #00aaff; color: #00aaff; } 
+        /* 按鈕區塊 */
+        .action-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; }
+        .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
+        .btn-call { border-color: #ffcc00; color: #ffcc00; } .btn-call:hover { background: #ffcc00; color: #000; }
+        .btn-path { border-color: #00ffaa; color: #00ffaa; } .btn-path:hover { background: #00ffaa; color: #000; }
+        .btn-off { border-color: #555; color: #888; } .btn-off:hover { background: #555; color: #fff; }
+        .btn-photo { border-color: #00aaff; color: #00aaff; } .btn-photo:hover { background: #00aaff; color: #000; }
         
-        .remark-box { margin-top: 5px; font-size: 0.85em; color: #ffaa00; background: rgba(255, 170, 0, 0.1); padding: 4px 8px; border-radius: 3px; border-left: 2px solid #ffaa00; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
+        .remark-box { margin-top: 8px; font-size: 0.85em; color: #ccc; background: rgba(255, 255, 255, 0.05); padding: 6px 10px; border-radius: 4px; border-left: 2px solid #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
+        .remark-box:hover { background: rgba(255, 255, 255, 0.1); border-left-color: #ffaa00; color: #ffaa00; }
         .remark-box.expanded { white-space: normal; word-break: break-all; }
         
-        .ai-box { margin-top: 5px; font-size: 0.85em; background: rgba(0, 243, 255, 0.1); padding: 6px; border-radius: 3px; border-left: 2px solid #00f3ff; }
-        .ai-badge { display: inline-block; background: #005577; color: #fff; padding: 2px 5px; border-radius: 3px; margin-right: 5px; margin-top: 3px; font-size: 0.9em;}
-        .ai-urgency-high { background: #ff0055; animation: blinkFast 1s infinite alternate; }
+        /* AI 解析區塊分級 */
+        .ai-box { margin-top: 8px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; }
+        .ai-box.ai-severe { border-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
+        .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; margin-right: 6px; margin-bottom: 4px; font-size: 0.85em; }
+        .ai-badge-normal { border: 1px solid #00aaff; color: #00aaff; }
+        .ai-urgency-high { background: #ff0055; color: #fff; font-weight: bold; box-shadow: 0 0 8px #ff0055; animation: blinkFast 1s infinite alternate; }
 
-        #log-panel { height: 100px; border-top: 1px dashed #047a80; font-size: 0.75em; overflow-y: auto; padding-top: 5px; margin-top: 10px; }
+        #log-panel { height: 120px; border-top: 1px solid rgba(4, 122, 128, 0.5); font-size: 0.75em; overflow-y: auto; padding-top: 10px; margin-top: auto; font-family: monospace; color: #888; }
         input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 5px; cursor: pointer; }
 
-        #photoModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
-        #photoModal .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 5px; font-size: 1.1em; z-index: 10000;}
-        #photoModal .close-btn:hover { background: #ff0055; color: #fff; }
+        /* Modal 樣式保持 */
+        #photoModal, #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,10,15,0.95); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; z-index: 10000; transition: all 0.2s;}
+        .close-btn:hover { background: #ff0055; color: #fff; box-shadow: 0 0 15px #ff0055;}
+        
         .carousel-container { display: flex; align-items: center; justify-content: center; position: relative; max-width: 95vw; max-height: 85vh; }
-        .carousel-btn { background: rgba(0, 243, 255, 0.2); border: 2px solid #00f3ff; color: #00f3ff; font-size: 2em; padding: 10px 20px; cursor: pointer; border-radius: 5px; margin: 0 20px; transition: all 0.3s ease; }
+        .carousel-btn { background: rgba(0, 243, 255, 0.1); border: 1px solid #00f3ff; color: #00f3ff; font-size: 2em; padding: 10px 15px; cursor: pointer; border-radius: 4px; margin: 0 20px; transition: all 0.3s; }
         .carousel-btn:hover { background: #00f3ff; color: #000; }
         .image-wrapper { position: relative; display: inline-block; }
-        #modalImg { max-height: 80vh; max-width: 75vw; object-fit: contain; border: 2px solid #00f3ff; border-radius: 8px; box-shadow: 0 0 20px rgba(0, 243, 255, 0.3); }
-        #modalCaption { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.7); color: #00ffaa; padding: 15px 0; text-align: center; font-size: 1.2em; font-family: monospace; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; box-sizing: border-box; }
+        #modalImg { max-height: 80vh; max-width: 75vw; object-fit: contain; border: 1px solid #00f3ff; border-radius: 4px; box-shadow: 0 0 30px rgba(0, 243, 255, 0.2); }
+        #modalCaption { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.8); color: #00ffaa; padding: 12px 0; text-align: center; font-size: 1.1em; font-family: monospace; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
 
-        #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,20,30,0.95); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; }
-        .ai-report-container { background: #0a0a0a; border: 2px solid #bb00ff; border-radius: 10px; width: 80%; max-width: 800px; height: 80%; display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(187, 0, 255, 0.4); }
-        .ai-report-header { padding: 15px; border-bottom: 1px solid #bb00ff; display: flex; justify-content: space-between; align-items: center; background: rgba(187, 0, 255, 0.1); }
-        .ai-report-title { font-size: 1.5em; font-weight: bold; color: #bb00ff; margin: 0; }
-        .ai-report-content { flex-grow: 1; padding: 20px; overflow-y: auto; color: #fff; font-size: 1.1em; line-height: 1.6; white-space: pre-wrap; }
-        .ai-report-content h1, .ai-report-content h2, .ai-report-content h3 { color: #00f3ff; }
+        .ai-report-container { background: #020608; border: 1px solid #bb00ff; border-radius: 8px; width: 85%; max-width: 900px; height: 85%; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(187, 0, 255, 0.2); }
+        .ai-report-header { padding: 15px 20px; border-bottom: 1px solid rgba(187, 0, 255, 0.3); display: flex; justify-content: space-between; align-items: center; background: rgba(187, 0, 255, 0.05); }
+        .ai-report-title { font-size: 1.4em; font-weight: bold; color: #e066ff; margin: 0; letter-spacing: 1px; }
+        .ai-report-content { flex-grow: 1; padding: 25px; overflow-y: auto; color: #ddd; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap; }
+        .ai-report-content h2 { color: #00f3ff; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; }
         .ai-report-content strong { color: #ffaa00; }
-        .ai-report-footer { padding: 15px; border-top: 1px solid #bb00ff; text-align: right; background: rgba(0,0,0,0.5); }
+        .ai-report-footer { padding: 15px 20px; border-top: 1px solid rgba(187, 0, 255, 0.3); text-align: right; background: rgba(0,0,0,0.8); }
     </style>
 </head>
 <body>
 <div id="map-container"><div id="map"></div></div>
 <div id="sidebar">
     <div class="toolbar">
-        <button id="btnAiReport" class="btn-ai-report" onclick="generateAIReport()">🤖 AI 災情總結</button>
+        <button id="btnAiReport" class="btn-ai-report" onclick="generateAIReport()">🤖 戰情 AI 總結</button>
         <button class="btn-export" onclick="exportGeoJSON()">📥 GeoJSON</button>
-        <button id="mapToggleBtn" class="btn-map-toggle" onclick="toggleMapType()">🛰️ 衛星</button>
-        <button onclick="clearPath()">清路徑</button>
+        <button id="mapToggleBtn" class="btn-map-toggle" onclick="toggleMapType()">🛰️ 衛星視角</button>
+        <button onclick="clearPath()">清空路徑</button>
         <button onclick="toggleAllTrack(true)">全選</button>
         <button onclick="toggleAllTrack(false)">取消</button>
-        <button class="btn-danger" onclick="allRetreat()" style="width: 100%;">🚨 全體撤退</button>
+        <button class="btn-danger" onclick="allRetreat()" style="width: 100%; margin-top: 5px;">🚨 發布全體撤退指令</button>
     </div>
     
-    <div id="user-list" style="flex-grow:1; overflow-y:auto;"></div>
-    <details><summary style="cursor:pointer; color:#888; padding:5px; border-top:1px solid #333; margin-top:5px;">離線紀錄</summary><div id="offline-list"></div></details>
+    <div id="user-list" style="flex-grow:1; overflow-y:auto; padding-right: 5px;"></div>
+    
+    <details style="margin-top: 10px;"><summary style="cursor:pointer; color:#666; padding:8px 0; border-top:1px solid #222; font-size: 0.9em; transition: color 0.2s;">歷史離線紀錄</summary><div id="offline-list"></div></details>
     <div id="log-panel" id="logs"></div>
     
     <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
 <div id="photoModal">
-    <button class="close-btn" onclick="closePhotoModal()">關閉 (X)</button>
+    <button class="close-btn" onclick="closePhotoModal()">✖ 關閉影像</button>
     <div class="carousel-container">
         <button class="carousel-btn" onclick="navPhoto(-1)">&#10094;</button>
         <div class="image-wrapper">
             <img id="modalImg" src="">
-            <div id="modalCaption">照片 1/5 | 拍攝時間: --</div>
+            <div id="modalCaption">影像擷取中...</div>
         </div>
         <button class="carousel-btn" onclick="navPhoto(1)">&#10095;</button>
     </div>
@@ -121,12 +133,12 @@
 <div id="aiReportModal">
     <div class="ai-report-container">
         <div class="ai-report-header">
-            <h3 class="ai-report-title">🤖 災防決策幕僚分析報告</h3>
-            <button onclick="closeAIReport()" style="background:transparent; border:none; color:#ff0055; font-size:1.5em; cursor:pointer;">✖</button>
+            <h3 class="ai-report-title">🤖 戰術幕僚綜合分析報告</h3>
+            <button onclick="closeAIReport()" style="background:transparent; border:none; color:#ff0055; font-size:1.5em; cursor:pointer; transition: transform 0.2s;">✖</button>
         </div>
-        <div id="aiReportContent" class="ai-report-content">載入中...</div>
+        <div id="aiReportContent" class="ai-report-content">資料同步與解析中...</div>
         <div class="ai-report-footer">
-            <button class="btn-export" onclick="downloadAIReport()" style="padding: 10px 20px; font-size: 1em;">💾 下載報告 (TXT)</button>
+            <button class="btn-export" onclick="downloadAIReport()" style="padding: 10px 20px; font-size: 1em;">💾 匯出報告檔 (TXT)</button>
         </div>
     </div>
 </div>
@@ -144,7 +156,7 @@
     
     const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
     const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
-    const contourLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, opacity: 0.35 });
+    const contourLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, opacity: 0.4 });
     
     defaultLayer.addTo(map);
     let isSatelliteMode = false;
@@ -155,13 +167,19 @@
         if (!isSatelliteMode) {
             map.removeLayer(defaultLayer); satelliteLayer.addTo(map); contourLayer.addTo(map);
             mapDiv.classList.add('real-world-mode'); 
-            toggleBtn.innerHTML = "🗺️ 預設"; log("已切換為「衛星與等高線」");
+            toggleBtn.innerHTML = "🗺️ 科技圖資"; log("切換至：實景衛星與地形圖");
         } else {
             map.removeLayer(satelliteLayer); map.removeLayer(contourLayer); defaultLayer.addTo(map);
             mapDiv.classList.remove('real-world-mode'); 
-            toggleBtn.innerHTML = "🛰️ 衛星"; log("已切換回「預設」模式");
+            toggleBtn.innerHTML = "🛰️ 衛星視角"; log("切換至：高反差戰情圖資");
         }
         isSatelliteMode = !isSatelliteMode;
+    };
+
+    // 💡 點擊雷達追蹤功能
+    window.focusMap = (lat, lng) => {
+        map.flyTo([lat, lng], 16, { duration: 1.2, easeLinearity: 0.25 });
+        log(`雷達鎖定座標：[${lat.toFixed(4)}, ${lng.toFixed(4)}]`);
     };
 
     const pcSound = document.getElementById('pcAlertSound');
@@ -181,13 +199,13 @@
         plannedPath.push([e.latlng.lat, e.latlng.lng]);
         pathLine.setLatLngs(plannedPath);
         pathMarkers.push(L.circleMarker(e.latlng, {radius:4, color:'#00ffaa'}).addTo(map));
-        log(`已加入路徑點`);
+        log(`登錄導航航點`);
     });
 
     window.clearPath = () => { 
         plannedPath = []; pathLine.setLatLngs([]); 
         pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; 
-        log("路徑與標記已清除"); 
+        log("導航資料已清除"); 
     };
 
     window.toggleAllTrack = (check) => {
@@ -197,9 +215,9 @@
     };
 
     window.allRetreat = () => {
-        if(confirm('確定要對所有人員發出「全體撤退」警報嗎？')) {
+        if(confirm('【警告】確定要對所有前線人員發出「強制撤退」最高警報嗎？')) {
             set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() });
-            log("🚨 已發出全體撤退指令！");
+            log("🚨 已派發全域撤退指令");
         }
     };
 
@@ -219,13 +237,12 @@
         const blob = new Blob([JSON.stringify(geojson, null, 2)], {type: "application/json;charset=utf-8"});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `Disaster_Report_${new Date().getTime()}.geojson`;
+        a.download = `TWM_Rescue_GeoData_${new Date().getTime()}.geojson`;
         a.click();
-        log("✅ 已匯出標準化 GeoJSON");
+        log("✅ GeoJSON 空間圖資已匯出");
     };
 
     let currentReportText = "";
-    // 核心：使用 Gemini 1.5 Pro 進行全域資料分析 (已退回 1.5 版並加入真實錯誤彈窗)
     window.generateAIReport = async () => {
         const activeUsers = [];
         Object.keys(currentUsersData).forEach(uid => {
@@ -236,83 +253,65 @@
                     座標: `${u.lat}, ${u.lng}`,
                     環境標籤: u.envStatus || "無",
                     現場備註: u.envRemark || "無",
-                    AI單點解析: u.ai_analysis || "無",
-                    手機電量: `${u.battery}%` || "未知"
+                    AI初步判定: u.ai_analysis || "無",
+                    設備電量: `${u.battery}%` || "未知"
                 });
             }
         });
 
         if (activeUsers.length === 0) {
-            alert("目前沒有活動中的通報人員資料可供分析！");
-            return;
+            alert("偵測不到活動中的終端節點。"); return;
         }
 
         const btn = document.getElementById('btnAiReport');
-        btn.innerText = "⏳ 幕僚分析中...";
+        btn.innerText = "⏳ 演算模組運作中...";
         btn.disabled = true;
 
         const prompt = `你是一個專業的災防指揮官 AI 幕僚。
-以下是目前第一線人員回報的最新數據集合（包含各人員的環境標籤、文字備註與單一事件解析）：
+以下是目前第一線人員回報的最新數據集合：
 ${JSON.stringify(activeUsers)}
 
-請根據這些數據綜合分析，產出一份「即時災防指揮總結報告」。報告必須清楚條理，嚴格包含以下三大區塊：
-
+請根據這些數據綜合分析，產出一份「即時災防指揮總結報告」。報告必須清楚條理，包含以下三大區塊：
 ## 一、 災情總覽大綱
-(請用一段話總結目前的整體狀況，並列出主要受到影響的區域或事件類型)
+(用一段話總結目前整體狀況，列出受影響區域或事件)
+## 二、 案件處理優先權清單
+(將事件排序為「🔴 高優先級」、「🟡 中優先級」、「🟢 低優先級」。指名【人員ID】並說明原因。電量低於20%必須列入風險)
+## 三、 指揮官調度建議
+(建議應優先派遣何種資源)
 
-## 二、 案件處理優先權清單 (至關重要)
-(請將所有人員回報的事件進行排序，分為「🔴 高優先級」、「🟡 中優先級」、「🟢 低優先級」。每一項必須明確指出是哪位【人員ID】回報的，並說明為何給予該優先級。若有人員電量低於20%，也必須列入風險考量。)
-
-## 三、 指揮官資源調度建議
-(根據上述需求，建議應優先派遣何種資源，如救護車、重機具等)
-
-請直接輸出繁體中文的 Markdown 格式內容，語氣需專業、簡潔、嚴謹。`;
+直接輸出繁體中文 Markdown 格式，語氣專業嚴謹。`;
 
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+            // 💡 修正 API 模型名稱至 latest
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
             
             const data = await response.json();
-            
-            // 💡 加入錯誤攔截，直接印出 Google 伺服器的錯誤
             if (data.error) {
-                alert("Google API 錯誤：" + data.error.message);
+                alert("AI 引擎異常：" + data.error.message);
             } else if (data.candidates && data.candidates[0].content.parts[0].text) {
                 currentReportText = data.candidates[0].content.parts[0].text;
-                
-                let displayHtml = currentReportText
-                    .replace(/## (.*?)\n/g, '<h2 style="margin-top:20px; border-bottom:1px solid #444; padding-bottom:5px;">$1</h2>')
+                document.getElementById('aiReportContent').innerHTML = currentReportText
+                    .replace(/## (.*?)\n/g, '<h2>$1</h2>')
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                
-                document.getElementById('aiReportContent').innerHTML = displayHtml;
                 document.getElementById('aiReportModal').style.display = 'flex';
-                log("✅ AI 災情總結報告已生成");
-            } else {
-                alert("AI 回應異常，請稍後再試或檢查 API Key。");
-            }
+                log("✅ 戰情 AI 報告生成完畢");
+            } else { alert("AI 分析結果為空，請重試。"); }
         } catch (error) {
-            console.error(error);
-            alert("生成報告失敗，請檢查網路連線或 API Key。");
+            console.error(error); alert("系統連線失敗。");
         }
-
-        btn.innerText = "🤖 AI 災情總結";
-        btn.disabled = false;
+        btn.innerHTML = "🤖 戰情 AI 總結"; btn.disabled = false;
     };
 
-    window.closeAIReport = () => {
-        document.getElementById('aiReportModal').style.display = 'none';
-    };
-
+    window.closeAIReport = () => { document.getElementById('aiReportModal').style.display = 'none'; };
     window.downloadAIReport = () => {
         if (!currentReportText) return;
         const blob = new Blob([currentReportText], {type: "text/plain;charset=utf-8"});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `AI_Commander_Report_${new Date().getTime()}.txt`;
-        a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `Tactical_AI_Report_${new Date().getTime()}.txt`; a.click();
     };
 
     function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString()}] ${m}`; document.getElementById('log-panel').prepend(d); }
@@ -327,12 +326,8 @@ ${JSON.stringify(activeUsers)}
             if (u.status === 'active') {
                 if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
                 renderCard(uid, u);
-                
-                if (activeTrackers.has(uid)) {
-                    updateMarker(uid, u); enableTrajectory(uid);
-                } else {
-                    removeMarker(uid); disableTrajectory(uid);
-                }
+                if (activeTrackers.has(uid)) { updateMarker(uid, u); enableTrajectory(uid); } 
+                else { removeMarker(uid); disableTrajectory(uid); }
             } else {
                 renderOffline(uid, u);
                 if (activeTrackers.has(uid)) { activeTrackers.delete(uid); }
@@ -346,8 +341,7 @@ ${JSON.stringify(activeUsers)}
         if (initialGlobalAlert) { initialGlobalAlert = false; return; }
         const data = snap.val();
         if (data && data.type === 'alarm') {
-            pcSound.play().catch(e=>{});
-            log(`⚠️ 收到來自 ${data.triggerBy} 的緊急警報！`);
+            pcSound.play().catch(e=>{}); log(`⚠️ 截獲來自 ${data.triggerBy} 的緊急信號！`);
         }
     });
 
@@ -355,57 +349,66 @@ ${JSON.stringify(activeUsers)}
     onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
         if (initialCrAlert) { initialCrAlert = false; return; }
         const data = snap.val();
-        if (data && data.triggerBy !== 'HQ') log(`🔊 收到來自 ${data.triggerBy} 的支援 CR 請求`);
+        if (data && data.triggerBy !== 'HQ') log(`🔊 節點 ${data.triggerBy} 請求 CR 支援`);
     });
 
     function renderCard(uid, u) {
         const div = document.createElement('div'); 
         div.className = 'user-card';
         const isTracked = activeTrackers.has(uid);
+        
+        // 💡 邏輯判斷：是否屬於嚴重狀況
+        let isSevere = u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高');
+        if (isSevere) div.classList.add('alarm-active');
+        
         const nameClass = u.isAlarm ? 'flash-name' : '';
-        const crTag = u.needCR ? `<span class="cr-tag">支援CR</span>` : '';
+        const crTag = u.needCR ? `<span class="tag-outline" style="color:#ffcc00; border-color:#ffcc00;">請求支援</span>` : '';
         
         let envTagHtml = '';
         if (u.envStatus) {
             const statuses = u.envStatus.split(',');
             statuses.forEach(status => {
                 if (!status) return;
-                let envClass = '';
+                // 💡 色彩降噪邏輯：嚴重狀態用實底色，一般狀態用線框
+                let cssClass = 'tag-outline'; let styleStr = '';
                 switch(status) {
-                    case '安全': envClass = 'env-safe'; break;
-                    case '警戒': envClass = 'env-alert'; break;
-                    case '車輛不通': envClass = 'env-blocked'; break;
-                    case '有傷患': envClass = 'env-casualty'; break;
-                    case '前往集合': envClass = 'env-rally'; break;
-                    case '路坍': envClass = 'env-collapse'; break;
+                    case '安全': styleStr = 'color:#00ffaa; border-color:#00ffaa;'; break;
+                    case '警戒': styleStr = 'color:#ffaa00; border-color:#ffaa00;'; break;
+                    case '前往集合': styleStr = 'color:#00aaff; border-color:#00aaff;'; break;
+                    case '車輛不通': cssClass = 'tag-solid'; styleStr = 'background:#ff5500;'; break;
+                    case '路坍': cssClass = 'tag-solid'; styleStr = 'background:#995522;'; break;
+                    case '有傷患': cssClass = 'tag-solid'; styleStr = 'background:#ff0055; animation: blinkFast 1s infinite alternate;'; break;
                 }
-                envTagHtml += `<span class="env-tag ${envClass}">${status}</span>`;
+                envTagHtml += `<span class="${cssClass}" style="${styleStr}">${status}</span>`;
             });
         }
         
         let batteryHTML = '';
         if (u.battery !== undefined && u.battery !== null) {
-            const batClass = u.battery <= 20 ? 'battery-low' : '';
-            batteryHTML = `<span class="battery-badge ${batClass}">🔋${u.battery}% ${u.charging ? '⚡' : ''}</span>`;
+            const batClass = u.battery <= 20 ? 'battery-low' : 'battery-normal';
+            batteryHTML = `<span class="battery-badge ${batClass}">⚡${u.battery}%</span>`;
         }
         
         let remarkHtml = '';
-        if (u.envRemark) { remarkHtml = `<div class="remark-box" onclick="this.classList.toggle('expanded')" title="點擊展開/收合">📝 原文：${u.envRemark}</div>`; }
+        if (u.envRemark) { remarkHtml = `<div class="remark-box" onclick="this.classList.toggle('expanded')" title="點擊展開">💬 通訊：${u.envRemark}</div>`; }
 
         let aiHtml = '';
         if (u.ai_analysis) {
             const ai = u.ai_analysis;
-            const urgencyClass = ai.urgency === '高' ? 'ai-urgency-high' : '';
+            const isHigh = ai.urgency === '高';
+            const urgencyClass = isHigh ? 'ai-urgency-high' : 'ai-badge-normal';
+            const boxClass = isHigh ? 'ai-severe' : '';
+            
             let needsHtml = '';
-            if (ai.needs && Array.isArray(ai.needs) && ai.needs.length > 0) { needsHtml = `<br>所需物資: <span style="color:#ffcc00">${ai.needs.join('、')}</span>`; }
+            if (ai.needs && Array.isArray(ai.needs) && ai.needs.length > 0) { needsHtml = `<br>資源調度: <span style="color:#00ffaa">${ai.needs.join('、')}</span>`; }
 
             aiHtml = `
-                <div class="ai-box">
-                    <span class="ai-badge ${urgencyClass}">急迫性: ${ai.urgency || '未知'}</span>
-                    <span class="ai-badge">🤖 AI解析</span>
-                    <div style="margin-top:4px;">
-                        事件: <span style="color:#fff">${ai.event || '無'}</span><br>
-                        傷亡: <span style="color:#ff0055">${ai.casualties || '無'}</span>
+                <div class="ai-box ${boxClass}">
+                    <span class="ai-badge ${urgencyClass}">風險級別: ${ai.urgency || '未知'}</span>
+                    <span class="ai-badge ai-badge-normal" style="color:#888; border-color:#444;">🧠 AI</span>
+                    <div style="margin-top:4px; line-height: 1.4;">
+                        事件判讀: <span style="color:#fff">${ai.event || '無'}</span><br>
+                        生還狀態: <span style="color:${ai.casualties!=='無'?'#ff0055':'#888'}">${ai.casualties || '無'}</span>
                         ${needsHtml}
                     </div>
                 </div>
@@ -415,23 +418,25 @@ ${JSON.stringify(activeUsers)}
         let photoBtnHtml = '';
         if (u.images && u.images.length > 0) {
             window.globalPhotos[uid] = u.images; 
-            photoBtnHtml = `<button class="action-btn btn-photo" onclick="showPhotoModal('${uid}')">📸 照片(${u.images.length})</button>`;
+            photoBtnHtml = `<button class="action-btn btn-photo" onclick="showPhotoModal('${uid}')">📷 影像(${u.images.length})</button>`;
         }
 
+        // 💡 加入 onclick="focusMap" 觸發雷達追蹤
         div.innerHTML = `
             <div class="header-row">
-                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''}>
-                <span class="${nameClass}">${uid}</span> ${crTag} ${envTagHtml} ${batteryHTML}
+                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="顯示軌跡">
+                <span class="user-name ${nameClass}" onclick="focusMap(${u.lat}, ${u.lng})" title="鎖定目標座標">${uid}</span> 
+                ${crTag} ${envTagHtml} ${batteryHTML}
             </div>
             <div class="info-row">
-                <span>座標: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</span>
-                <span>回報: ${new Date(u.timestamp).toLocaleTimeString()}</span>
+                <span>POS: ${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</span>
+                <span>T: ${new Date(u.timestamp).toLocaleTimeString()}</span>
             </div>
             <div class="action-grid">
-                <button class="action-btn btn-alert" onclick="sendCmd('${uid}', 'targeted_alert')">警報</button>
-                <button class="action-btn btn-call" onclick="sendCmd('${uid}', 'targeted_cr')">呼叫</button>
-                <button class="action-btn btn-path" onclick="sendPath('${uid}')">路徑</button>
-                <button class="action-btn btn-off" onclick="forceOff('${uid}')">離線</button>
+                <button class="action-btn btn-alert" onclick="sendCmd('${uid}', 'targeted_alert')">發布警報</button>
+                <button class="action-btn btn-call" onclick="sendCmd('${uid}', 'targeted_cr')">CR呼叫</button>
+                <button class="action-btn btn-path" onclick="sendPath('${uid}')">派發路徑</button>
+                <button class="action-btn btn-off" onclick="forceOff('${uid}')">斷線</button>
                 ${photoBtnHtml}
             </div>
             ${remarkHtml}
@@ -449,8 +454,8 @@ ${JSON.stringify(activeUsers)}
     }
 
     function renderOffline(uid, u) { 
-        const div = document.createElement('div'); div.style.padding='5px 10px'; div.style.borderBottom='1px solid #222'; div.style.fontSize='0.8em';
-        div.innerHTML = `<span style="color:#666">${uid} (已離線) - ${new Date(u.timestamp).toLocaleTimeString()}</span>`;
+        const div = document.createElement('div'); div.style.padding='6px 12px'; div.style.borderBottom='1px solid rgba(255,255,255,0.05)'; div.style.fontSize='0.8em'; div.style.fontFamily='monospace';
+        div.innerHTML = `<span style="color:#555">[-] ${uid} (離線) - ${new Date(u.timestamp).toLocaleTimeString()}</span>`;
         document.getElementById('offline-list').appendChild(div);
     }
 
@@ -461,24 +466,21 @@ ${JSON.stringify(activeUsers)}
         if (markers[uid]) { 
             markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); 
         } else { 
-            markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color, fillOpacity: 0.8}).addTo(map); 
+            markers[uid] = L.circleMarker([u.lat, u.lng], {radius:6, color: color, weight: 2, fillOpacity: 0.6}).addTo(map); 
         }
     }
     
-    function removeMarker(uid) {
-        if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; }
-    }
+    function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
 
     function enableTrajectory(uid) {
         if (!hListeners[uid]) {
             hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
                 const pts = Object.values(s.val() || {}).map(p => [p.lat, p.lng]);
                 if (polylines[uid]) polylines[uid].setLatLngs(pts);
-                else polylines[uid] = L.polyline(pts, {color:'#00f3ff', weight:2, dashArray:'5,5'}).addTo(map);
+                else polylines[uid] = L.polyline(pts, {color:'#005577', weight:3, opacity: 0.7, dashArray:'5,8'}).addTo(map);
             });
         }
     }
-    
     function disableTrajectory(uid) {
         if (polylines[uid]) { map.removeLayer(polylines[uid]); delete polylines[uid]; }
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
@@ -500,18 +502,17 @@ ${JSON.stringify(activeUsers)}
     function updateModalView() {
         const photoObj = currentModalPhotos[currentPhotoIndex];
         document.getElementById('modalImg').src = photoObj.data;
-        document.getElementById('modalCaption').innerText = `照片 ${currentPhotoIndex + 1} / ${currentModalPhotos.length}  |  拍攝時間: ${new Date(photoObj.time).toLocaleString()}`;
+        document.getElementById('modalCaption').innerText = `紀錄 ${currentPhotoIndex + 1} / ${currentModalPhotos.length} | T: ${new Date(photoObj.time).toLocaleString()}`;
     }
-    
     window.closePhotoModal = () => { document.getElementById('photoModal').style.display = 'none'; document.getElementById('modalImg').src = ''; };
 
-    window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`已向 ${uid} 發送指令`); };
+    window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`傳送戰術指令至：${uid}`); };
     window.sendPath = uid => {
-        if (plannedPath.length < 1) return alert("請先點擊地圖規劃路徑");
-        set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`已向 ${uid} 派發路徑`);
+        if (plannedPath.length < 1) return alert("請先於地圖點擊以設置導航航點");
+        set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`路徑資料已發送至：${uid}`);
     };
     window.forceOff = uid => {
-        if (confirm("強制離線：\n[確定] 徹底刪除所有資料\n[取消] 斷線並保留紀錄於摺疊區")) { remove(ref(db, `tracking/users/${uid}`)); remove(ref(db, `tracking/history/${uid}`)); }
+        if (confirm("【警告】執行強制斷線：\n[確定] 抹除節點所有資料\n[取消] 僅切斷連線並轉入歷史紀錄")) { remove(ref(db, `tracking/users/${uid}`)); remove(ref(db, `tracking/history/${uid}`)); }
         else { set(ref(db, `tracking/commands/${uid}/force_offline`), { timestamp: Date.now() }); update(ref(db, `tracking/users/${uid}`), {status:'offline'}); }
     };
 </script>

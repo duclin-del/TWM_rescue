@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>災防通報：即時軌跡與音訊警報系統</title>
+    <style>
+        /* Tron Style UI */
+        body {
+            background-color: #0a0a0a;
+            color: #00f3ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: rgba(0, 20, 30, 0.8);
+            border: 2px solid #00f3ff;
+            border-radius: 10px;
+            box-shadow: 0 0 15px #00f3ff, inset 0 0 10px #00f3ff;
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h2 { text-transform: uppercase; letter-spacing: 2px; }
+        .data-panel {
+            background: #000;
+            border: 1px solid #047a80;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            color: #fff;
+            text-align: left;
+            word-wrap: break-word;
+        }
+        button {
+            background-color: transparent;
+            color: #00f3ff;
+            border: 1px solid #00f3ff;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+        button:hover {
+            background-color: #00f3ff;
+            color: #000;
+            box-shadow: 0 0 10px #00f3ff;
+        }
+        .warning-btn {
+            border-color: #ff0055;
+            color: #ff0055;
+        }
+        .warning-btn:hover {
+            background-color: #ff0055;
+            color: #fff;
+            box-shadow: 0 0 10px #ff0055;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Tracker Component</h2>
+    <div>使用者 ID: <input type="text" id="userId" value="User_Alpha" style="background:#000; color:#00f3ff; border:1px solid #00f3ff; padding:5px;"></div>
+    
+    <div class="data-panel" id="statusPanel">
+        系統狀態：待命中...<br>
+        緯度：--<br>
+        經度：--
+    </div>
+
+    <button id="startBtn">啟動追蹤</button>
+    <button id="stopBtn" style="display:none;">停止追蹤</button>
+    <button id="warnBtn" class="warning-btn">發送警報 (廣播)</button>
+    
+    <!-- 隱藏的警告音訊元件 -->
+    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+</div>
+
+<!-- Firebase 模組化載入 -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { firebaseConfig } from './firebase-config.js'; // 從外部載入設定檔
+
+    // 1. 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // DOM 元素
+    const userIdInput = document.getElementById('userId');
+    const statusPanel = document.getElementById('statusPanel');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const warnBtn = document.getElementById('warnBtn');
+    const alertSound = document.getElementById('alertSound');
+
+    let watchId = null;
+
+    // 2. 啟動 GPS 追蹤並同步至 Firebase
+    startBtn.addEventListener('click', () => {
+        const uid = userIdInput.value.trim();
+        if (!uid) return alert('請輸入使用者 ID');
+        if (!navigator.geolocation) return alert('您的設備不支援地理定位');
+
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-block';
+        
+        // 監聽本地位置變更
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const { latitude, longitude, accuracy } = position.coords;
+                const timestamp = new Date().toISOString();
+                
+                // 更新 UI
+                statusPanel.innerHTML = `系統狀態：傳輸中...<br>緯度：${latitude.toFixed(6)}<br>經度：${longitude.toFixed(6)}<br>精度：${accuracy.toFixed(1)}m`;
+
+                // 寫入 Firebase (符合簡章標準化 JSON 輸出)
+                const locationData = {
+                    lat: latitude,
+                    lng: longitude,
+                    timestamp: timestamp,
+                    status: "active"
+                };
+                set(ref(db, `tracking/users/${uid}`), locationData);
+            },
+            (error) => {
+                statusPanel.innerHTML = `錯誤：${error.message}`;
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+
+        // 啟動自身警報監聽
+        listenForWarnings(uid);
+    });
+
+    // 3. 停止追蹤
+    stopBtn.addEventListener('click', () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        startBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+        statusPanel.innerHTML = `系統狀態：已停止<br>緯度：--<br>經度：--`;
+        
+        const uid = userIdInput.value.trim();
+        update(ref(db, `tracking/users/${uid}`), { status: "offline" });
+    });
+
+    // 4. 雙向警報：發送全域警告訊號
+    warnBtn.addEventListener('click', () => {
+        const timestamp = new Date().getTime();
+        // 將警告標記寫入全域節點，所有連線中的客戶端都會收到
+        set(ref(db, `tracking/alerts/global`), {
+            triggerBy: userIdInput.value.trim(),
+            timestamp: timestamp
+        });
+        statusPanel.innerHTML += `<br><span style="color:#ff0055">已發送警告訊號！</span>`;
+    });
+
+    // 5. 雙向警報：監聽遠端警告訊號
+    function listenForWarnings(currentUid) {
+        const alertRef = ref(db, 'tracking/alerts/global');
+        let initialLoad = true;
+
+        onValue(alertRef, (snapshot) => {
+            const data = snapshot.val();
+            // 避免初始載入時觸發舊警報
+            if (initialLoad) {
+                initialLoad = false;
+                return;
+            }
+            if (data && data.triggerBy !== currentUid) {
+                // 播放警告音訊
+                alertSound.play().catch(e => console.log('音訊播放需使用者互動解鎖:', e));
+                
+                // 畫面閃爍特效
+                document.body.style.backgroundColor = '#500';
+                setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 500);
+                
+                statusPanel.innerHTML += `<br><span style="color:#ff0055">收到來自 ${data.triggerBy} 的警告！</span>`;
+            }
+        });
+    }
+</script>
+</body>
+</html>

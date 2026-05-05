@@ -65,11 +65,9 @@
         .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
 
-        /* 💡 核心變更：動態隱藏動作按鈕區塊 */
-        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; animation: fadeIn 0.3s ease; }
-        /* 當外層卡片擁有 active-focus 屬性時，才顯示按鈕面板 */
+        /* 💡 修復：移除 animation，解決刷新時按鈕一直跳動的問題 */
+        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .user-card.active-focus .action-grid { display: flex; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
         .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; white-space: nowrap; }
         .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
@@ -114,7 +112,6 @@
 <div id="map-container">
     <div id="map"></div>
     <div id="map-coord-overlay"></div>
-    
     <div id="map-bottom-controls">
         <button id="global-layer-btn" class="map-floating-btn" onclick="toggleGlobalLayer()">👁️ 隱藏歷史軌跡 (僅顯示光點)</button>
     </div>
@@ -143,12 +140,12 @@
 <div id="photoModal">
     <button class="close-btn" onclick="closePhotoModal()">✖ 關閉</button>
     <div class="carousel-container">
-        <button class="carousel-btn" onclick="navPhoto(-1)">&#10094;</button>
+        <button class="carousel-btn" onclick="navPhoto(-1)">❮</button>
         <div class="image-wrapper">
             <img id="modalImg" src="">
             <div id="modalCaption">影像擷取中...</div>
         </div>
-        <button class="carousel-btn" onclick="navPhoto(1)">&#10095;</button>
+        <button class="carousel-btn" onclick="navPhoto(1)">❯</button>
     </div>
 </div>
 
@@ -196,8 +193,6 @@
     let hudTimeout = null;
 
     window.aiExpandedAll = false;
-    
-    // 💡 追蹤當前被聚焦的使用者 ID
     window.focusedUid = null;
 
     map.on('click', e => {
@@ -207,7 +202,6 @@
         log(`登錄導航航點：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
     });
 
-    // 💡 地圖縮放監聽：若縮放比例小於特寫比例 (16)，自動收合所有動作按鈕
     map.on('zoomend', () => {
         if (map.getZoom() < 16) {
             window.focusedUid = null;
@@ -216,10 +210,7 @@
     });
 
     window.focusMap = (lat, lng, uid, battery) => {
-        // 設定當前追蹤的 UID
         window.focusedUid = uid;
-        
-        // 切換顯示狀態
         document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-focus'));
         const targetCard = document.getElementById(`user-card-${uid}`);
         if(targetCard) targetCard.classList.add('active-focus');
@@ -250,16 +241,9 @@
             const u = currentUsersData[uid];
             if (u.status === 'active') {
                 if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
-                
                 renderCard(uid, u);
-                
-                if (activeTrackers.has(uid)) { 
-                    updateMarker(uid, u); 
-                    enableTrajectory(uid); 
-                } else { 
-                    removeMarker(uid); 
-                    disableTrajectory(uid); 
-                }
+                if (activeTrackers.has(uid)) { updateMarker(uid, u); enableTrajectory(uid); } 
+                else { removeMarker(uid); disableTrajectory(uid); }
             } else {
                 renderOffline(uid, u);
                 if (activeTrackers.has(uid)) activeTrackers.delete(uid);
@@ -294,14 +278,11 @@
 
     function renderCard(uid, u) {
         const div = document.createElement('div'); 
-        // 賦予獨立 ID 以利查找切換樣式
         div.id = `user-card-${uid}`;
-        
         const isTracked = activeTrackers.has(uid);
         const isSevere = u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高');
         div.className = `user-card ${isSevere ? 'severe' : ''}`;
         
-        // 💡 如果重新渲染時，該卡片正在被聚焦，且地圖符合比例，則保留展開狀態
         if (window.focusedUid === uid && map.getZoom() >= 16) {
             div.classList.add('active-focus');
         }
@@ -382,7 +363,6 @@
         `;
         document.getElementById('user-list').appendChild(div);
 
-        // 綁定事件
         div.querySelector('.user-name').addEventListener('click', () => focusMap(u.lat, u.lng, uid, u.battery));
         const remarkBox = div.querySelector('.remark-box');
         if (remarkBox) remarkBox.addEventListener('click', () => remarkBox.classList.toggle('expanded'));

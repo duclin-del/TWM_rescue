@@ -19,7 +19,8 @@
         .data-val { color: #fff; font-weight: bold; }
         
         .action-row { display: flex; gap: 8px; margin-bottom: 15px; }
-        .action-row button { margin: 0; padding: 12px 5px; border-radius: 6px; flex: 1; border: 1px solid; background: transparent; font-weight: bold; cursor: pointer; }
+        .action-row button { margin: 0; padding: 12px 5px; border-radius: 6px; flex: 1; border: 1px solid; background: transparent; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .action-row button:active { transform: scale(0.95); }
         .stop-btn { flex: 0.7 !important; border-color: #666 !important; color: #888 !important; font-size: 0.85em !important; }
         .warning-btn { border-color: #ff0055 !important; color: #ff0055 !important; }
         .warning-btn:active { background: #ff0055; color: #fff; }
@@ -27,19 +28,39 @@
         .cr-btn:active { background: #ffcc00; color: #000; }
 
         .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
-        .env-btn { border: 1px solid #444; color: #aaa; padding: 10px 2px; font-size: 0.85em; background: transparent; border-radius: 6px; cursor: pointer; }
-        .env-btn.active[data-status="安全"] { background: #00ffaa; color: #000; border-color: #00ffaa; }
-        .env-btn.active[data-status="警戒"] { background: #ffcc00; color: #000; border-color: #ffcc00; }
-        .env-btn.active[data-status="有傷患"] { background: #ff0055; color: #fff; border-color: #ff0055; }
+        /* 增加按鈕的互動動畫 */
+        .env-btn { border: 1px solid #444; color: #aaa; padding: 12px 2px; font-size: 0.85em; background: transparent; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; }
+        .env-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.1); }
+        
+        .env-btn.active[data-status="安全"] { background: #00ffaa; color: #000; border-color: #00ffaa; box-shadow: 0 0 10px rgba(0,255,170,0.6); }
+        .env-btn.active[data-status="警戒"] { background: #ffcc00; color: #000; border-color: #ffcc00; box-shadow: 0 0 10px rgba(255,204,0,0.6); }
+        .env-btn.active[data-status="車輛不通"] { background: #ff5500; color: #fff; border-color: #ff5500; box-shadow: 0 0 10px rgba(255,85,0,0.6); }
+        .env-btn.active[data-status="有傷患"] { background: #ff0055; color: #fff; border-color: #ff0055; box-shadow: 0 0 10px rgba(255,0,85,0.6); }
+        .env-btn.active[data-status="前往集合"] { background: #00aaff; color: #fff; border-color: #00aaff; box-shadow: 0 0 10px rgba(0,170,255,0.6); }
+        .env-btn.active[data-status="路坍"] { background: #995522; color: #fff; border-color: #995522; box-shadow: 0 0 10px rgba(153,85,34,0.6); }
 
         .remark-input { flex: 1; background: #000; color: #ffaa00; border: 1px solid #444; padding: 10px; border-radius: 6px; outline: none; }
         .ai-status { font-size: 0.75em; color: #00ffaa; text-align: right; margin-top: 4px; display: none; }
         .preview-img { height: 60px; border-radius: 5px; border: 1px solid #00ffaa; object-fit: cover; }
         
         .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 6px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
+
+        /* 💡 全新：系統同步確認浮動提示 (Toast) */
+        #syncToast {
+            position: fixed; top: -60px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 255, 170, 0.95); color: #000; font-weight: bold;
+            padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,255,170,0.5);
+            transition: top 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); z-index: 10000;
+            pointer-events: none; display: flex; align-items: center; gap: 8px; font-size: 0.9em;
+        }
+        #syncToast.show { top: 20px; }
+        #syncToast.warning { background: rgba(255, 0, 85, 0.95); color: #fff; box-shadow: 0 4px 15px rgba(255,0,85,0.5); }
     </style>
 </head>
 <body>
+
+<div id="syncToast">✅ 狀態已同步</div>
+
 <div class="container">
     <div id="loginSection">
         <h2 style="margin-top:0; color:#00f3ff; margin-bottom: 20px;">災防通報終端</h2>
@@ -119,6 +140,16 @@
     let currentEnvStatus = new Set();
     let currentPhotos = [];
 
+    // 💡 提示訊息管理器：確保視覺與伺服器連動
+    function showToast(msg, isWarning = false) {
+        const toast = document.getElementById('syncToast');
+        toast.innerHTML = msg;
+        if (isWarning) toast.classList.add('warning'); else toast.classList.remove('warning');
+        toast.classList.add('show');
+        if (navigator.vibrate) navigator.vibrate(50); // 手機短震動回饋
+        setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
     if ('getBattery' in navigator) {
         navigator.getBattery().then(bat => {
             batteryInfo = { level: Math.round(bat.level * 100), charging: bat.charging };
@@ -144,19 +175,40 @@
                 ui.photoBtn.innerText = `📸 已保留 ${currentPhotos.length}/5 張`;
                 
                 const uid = ui.userId.value.trim();
-                if (uid && watchId) update(ref(db, `tracking/users/${uid}`), { images: currentPhotos });
+                // 💡 更新照片後，等待伺服器確認再彈出提示
+                if (uid && watchId) {
+                    update(ref(db, `tracking/users/${uid}`), { images: currentPhotos })
+                        .then(() => showToast('📸 現場照片已同步'));
+                }
             };
             reader.readAsDataURL(file);
         }
     };
 
+    // 💡 核心修復：解決點擊邊緣失效，並加入伺服器同步 Toast
     document.querySelectorAll('.env-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            const status = e.target.getAttribute('data-status');
-            if (currentEnvStatus.has(status)) { currentEnvStatus.delete(status); e.target.classList.remove('active'); } 
-            else { currentEnvStatus.add(status); e.target.classList.add('active'); }
+        btn.onclick = () => {
+            if (navigator.vibrate) navigator.vibrate(30); // 點擊微震動
+            
+            const status = btn.getAttribute('data-status');
+            if (currentEnvStatus.has(status)) { 
+                currentEnvStatus.delete(status); 
+                btn.classList.remove('active'); 
+            } else { 
+                currentEnvStatus.add(status); 
+                btn.classList.add('active'); 
+            }
+            
             const uid = ui.userId.value.trim();
-            if (uid && watchId) update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') });
+            if (uid && watchId) {
+                // 等待 Firebase 回傳成功才顯示 Toast，給予 100% 確認感
+                update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') })
+                    .then(() => {
+                        const statusStr = Array.from(currentEnvStatus).join(', ');
+                        if(statusStr) showToast(`✅ [${statusStr}] 已同步指揮中心`);
+                        else showToast('✅ 狀態已清除');
+                    });
+            }
         };
     });
 
@@ -165,6 +217,7 @@
         let text = ui.remarkInput.value.trim();
         if (!uid || !text) return;
         ui.remarkBtn.disabled = true; ui.aiStatus.style.display = 'block';
+        if (navigator.vibrate) navigator.vibrate(30);
         
         let aiAnalysis = null;
         try {
@@ -185,15 +238,21 @@
         } catch (e) {
             text += " (API失效)"; ui.aiStatus.innerText = "⚠️ API失效";
         }
-        update(ref(db, `tracking/users/${uid}`), { envRemark: text, ai_analysis: aiAnalysis });
-        ui.remarkBtn.disabled = false;
-        setTimeout(() => ui.aiStatus.style.display = 'none', 3000);
+        
+        // 💡 等待伺服器更新成功後提示
+        update(ref(db, `tracking/users/${uid}`), { envRemark: text, ai_analysis: aiAnalysis })
+            .then(() => {
+                showToast('💬 備註與 AI 分析已同步');
+                ui.remarkBtn.disabled = false;
+                setTimeout(() => ui.aiStatus.style.display = 'none', 3000);
+            });
     };
 
     document.getElementById('warnBtn').onclick = () => {
         const uid = ui.userId.value.trim();
         if (!uid || !watchId) return;
-        update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
+        update(ref(db, `tracking/users/${uid}`), { isAlarm: true })
+            .then(() => showToast('🚨 緊急警報已送出！', true));
         set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
         playAlert('指揮中心發出緊急警報！', '#ff0055'); 
@@ -202,7 +261,8 @@
     document.getElementById('crBtn').onclick = () => {
         const uid = ui.userId.value.trim();
         if (!uid || !watchId) return;
-        update(ref(db, `tracking/users/${uid}`), { needCR: true });
+        update(ref(db, `tracking/users/${uid}`), { needCR: true })
+            .then(() => showToast('🔊 CR支援請求已送出', true));
         set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
         playAlert('請支援CR', '#ffcc00'); 
@@ -248,7 +308,6 @@
         location.reload();
     };
     
-    // 💡 核心修復：使用數值比較判斷新舊指令，徹底無視時間差
     function listenCmd(uid) {
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
         
@@ -300,13 +359,12 @@
         });
     }
 
-    // 💡 核心修復：強制清除語音佇列，保證一定會發聲
     function playAlert(msg, color) {
         ui.snd.currentTime = 0;
         ui.snd.play().catch(e=>{});
         
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); // 清除卡住的語音
+            window.speechSynthesis.cancel(); // 強制清除卡住的語音
             const utter = new SpeechSynthesisUtterance(msg); 
             utter.lang = 'zh-TW'; 
             window.speechSynthesis.speak(utter);

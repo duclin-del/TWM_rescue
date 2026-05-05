@@ -65,9 +65,9 @@
         .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
 
-        /* 💡 修復：移除 animation，解決刷新時按鈕一直跳動的問題 */
-        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; animation: fadeIn 0.3s ease; }
         .user-card.active-focus .action-grid { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
         .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; white-space: nowrap; }
         .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
@@ -165,8 +165,9 @@
     import { getDatabase, ref, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     import { firebaseConfig } from './firebase-config.js';
 
+    // 💡 本機測試時請填入真實 Key
     const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
-    const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+    const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -269,9 +270,12 @@
         const data = snap.val();
         if (data && data.timestamp > Date.now() - 5000 && data.triggerBy !== 'HQ') {
             pcSound.play().catch(e=>{});
-            const utter = new SpeechSynthesisUtterance('請支援CR');
-            utter.lang = 'zh-TW';
-            window.speechSynthesis.speak(utter);
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance('請支援CR');
+                utter.lang = 'zh-TW';
+                window.speechSynthesis.speak(utter);
+            }
             log(`🔊 節點 ${data.triggerBy} 請求 CR 支援`);
         }
     });
@@ -478,7 +482,20 @@
     };
 
     window.clearPath = () => { plannedPath = []; pathLine.setLatLngs([]); pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; log("路徑標記已清空"); };
-    window.allRetreat = () => { if(confirm('確定要對所有人員發布全域撤退？')) { set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() }); log("🚨 發布全體撤退指令"); }};
+    
+    window.allRetreat = () => { 
+        if(confirm('確定要對所有人員發布全域撤退？')) { 
+            set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() }); 
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退');
+                utter.lang = 'zh-TW';
+                window.speechSynthesis.speak(utter);
+            }
+            log("🚨 發布全體撤退指令"); 
+        }
+    };
+
     window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`傳送指令至：${uid}`); };
     window.sendPath = uid => { if (plannedPath.length < 1) return alert("請先於地圖點擊以設置導航航點"); set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`路徑已發送至：${uid}`); };
     
@@ -526,19 +543,34 @@
         try {
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+                headers: { 
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com",
+                    "X-Title": "Rescue Dashboard"
+                },
                 body: JSON.stringify({
                     model: OPENROUTER_MODEL,
                     messages: [{ role: "user", content: `你是災防指揮官。分析以下數據並給出「災情大綱」與「處理優先權」：${JSON.stringify(activeUsers)}` }]
                 })
             });
             const data = await res.json();
-            if (res.ok && data.choices) {
+            
+            if (!res.ok) {
+                throw new Error(data.error?.message || `HTTP ${res.status}`);
+            }
+
+            if (data.choices && data.choices.length > 0) {
                 currentReportText = data.choices[0].message.content;
-                content.innerHTML = currentReportText.replace(/## (.*?)\n/g, '<h3 style="color:#00f3ff; margin-top:20px; border-bottom:1px solid #333;">$1</h3>').replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffaa00;">$1</strong>');
-            } else throw new Error();
+                content.innerHTML = currentReportText
+                    .replace(/## (.*?)\n/g, '<h3 style="color:#00f3ff; margin-top:20px; border-bottom:1px solid #333;">$1</h3>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffaa00;">$1</strong>');
+            } else {
+                throw new Error("API 回傳格式異常");
+            }
         } catch (e) {
-            currentReportText = JSON.stringify(activeUsers, null, 2) + "\n\n(API失效)";
+            console.error("OpenRouter API 錯誤詳細資訊:", e);
+            currentReportText = JSON.stringify(activeUsers, null, 2) + `\n\n(API 錯誤: ${e.message})`;
             content.innerHTML = `<pre style="color:#aaa;">${currentReportText}</pre>`;
         }
     };

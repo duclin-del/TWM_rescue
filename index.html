@@ -28,7 +28,6 @@
         .cr-btn:active { background: #ffcc00; color: #000; }
 
         .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
-        /* 增加按鈕的互動動畫 */
         .env-btn { border: 1px solid #444; color: #aaa; padding: 12px 2px; font-size: 0.85em; background: transparent; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; }
         .env-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.1); }
         
@@ -45,7 +44,6 @@
         
         .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 6px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
 
-        /* 💡 全新：系統同步確認浮動提示 (Toast) */
         #syncToast {
             position: fixed; top: -60px; left: 50%; transform: translateX(-50%);
             background: rgba(0, 255, 170, 0.95); color: #000; font-weight: bold;
@@ -97,7 +95,7 @@
             <div style="margin-top:8px;">
                 <div style="display:flex; gap:5px;">
                     <input type="text" id="remarkInput" class="remark-input" placeholder="現場備註 (AI 解析)">
-                    <button id="remarkBtn" style="color:#ffaa00; border: 1px solid #ffaa00; background:transparent; padding:0 10px; border-radius:6px;">送出</button>
+                    <button id="remarkBtn" style="color:#ffaa00; border: 1px solid #ffaa00; background:transparent; padding:0 10px; border-radius:6px; cursor: pointer;">送出</button>
                 </div>
                 <div id="aiStatus" class="ai-status">🤖 AI 解析中...</div>
             </div>
@@ -121,8 +119,10 @@
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     import { firebaseConfig } from './firebase-config.js'; 
 
-    const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
-    const OPENROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b";
+    // 💡 本機測試時，請務必將這串換成真實的 OpenRouter API Key
+    const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY"; 
+    // 💡 已替換為穩定且免費的 Gemini 2.0 模型
+    const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -140,13 +140,12 @@
     let currentEnvStatus = new Set();
     let currentPhotos = [];
 
-    // 💡 提示訊息管理器：確保視覺與伺服器連動
     function showToast(msg, isWarning = false) {
         const toast = document.getElementById('syncToast');
         toast.innerHTML = msg;
         if (isWarning) toast.classList.add('warning'); else toast.classList.remove('warning');
         toast.classList.add('show');
-        if (navigator.vibrate) navigator.vibrate(50); // 手機短震動回饋
+        if (navigator.vibrate) navigator.vibrate(50);
         setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
@@ -175,7 +174,6 @@
                 ui.photoBtn.innerText = `📸 已保留 ${currentPhotos.length}/5 張`;
                 
                 const uid = ui.userId.value.trim();
-                // 💡 更新照片後，等待伺服器確認再彈出提示
                 if (uid && watchId) {
                     update(ref(db, `tracking/users/${uid}`), { images: currentPhotos })
                         .then(() => showToast('📸 現場照片已同步'));
@@ -185,10 +183,9 @@
         }
     };
 
-    // 💡 核心修復：解決點擊邊緣失效，並加入伺服器同步 Toast
     document.querySelectorAll('.env-btn').forEach(btn => {
         btn.onclick = () => {
-            if (navigator.vibrate) navigator.vibrate(30); // 點擊微震動
+            if (navigator.vibrate) navigator.vibrate(30);
             
             const status = btn.getAttribute('data-status');
             if (currentEnvStatus.has(status)) { 
@@ -201,7 +198,6 @@
             
             const uid = ui.userId.value.trim();
             if (uid && watchId) {
-                // 等待 Firebase 回傳成功才顯示 Toast，給予 100% 確認感
                 update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') })
                     .then(() => {
                         const statusStr = Array.from(currentEnvStatus).join(', ');
@@ -223,23 +219,33 @@
         try {
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
-                headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" },
+                headers: { 
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com",
+                    "X-Title": "Rescue Terminal"
+                },
                 body: JSON.stringify({
                     model: OPENROUTER_MODEL,
                     messages: [{ role: "user", content: `將通報內容轉為JSON (不可包含Markdown)：{"event":"","casualties":"","needs":[],"urgency":"高/中/低"} 內容：${text}` }]
                 })
             });
             const data = await res.json();
-            if (res.ok) {
+            
+            if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+            
+            if (data.choices && data.choices.length > 0) {
                 let cleanJson = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
                 aiAnalysis = JSON.parse(cleanJson);
                 ui.aiStatus.innerText = "🤖 解析完成";
-            } else { throw new Error(); }
+            } else { throw new Error("API異常"); }
         } catch (e) {
-            text += " (API失效)"; ui.aiStatus.innerText = "⚠️ API失效";
+            console.error("OpenRouter API 錯誤:", e);
+            // 💡 強化錯誤顯示：清楚印出死因
+            text += ` (API錯誤: ${e.message})`; 
+            ui.aiStatus.innerText = "⚠️ API失敗";
         }
         
-        // 💡 等待伺服器更新成功後提示
         update(ref(db, `tracking/users/${uid}`), { envRemark: text, ai_analysis: aiAnalysis })
             .then(() => {
                 showToast('💬 備註與 AI 分析已同步');
@@ -272,7 +278,6 @@
         const uid = ui.userId.value.trim();
         if (!uid) return alert('請輸入 ID');
         
-        // 喚醒音效與語音引擎權限
         ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
         ui.silent.play().catch(e=>{});
         if ('speechSynthesis' in window) {
@@ -364,7 +369,7 @@
         ui.snd.play().catch(e=>{});
         
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); // 強制清除卡住的語音
+            window.speechSynthesis.cancel();
             const utter = new SpeechSynthesisUtterance(msg); 
             utter.lang = 'zh-TW'; 
             window.speechSynthesis.speak(utter);

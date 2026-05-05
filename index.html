@@ -196,8 +196,7 @@
         update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
         set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
-        // 本地立刻回饋音效
-        playAlert('發出緊急警報', '#ff0055'); 
+        playAlert('指揮中心發出緊急警報！', '#ff0055'); 
     };
 
     document.getElementById('crBtn').onclick = () => {
@@ -206,15 +205,21 @@
         update(ref(db, `tracking/users/${uid}`), { needCR: true });
         set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
-        // 💡 本地立刻回饋音效
         playAlert('請支援CR', '#ffcc00'); 
     };
 
     ui.start.onclick = () => {
         const uid = ui.userId.value.trim();
         if (!uid) return alert('請輸入 ID');
+        
+        // 喚醒音效與語音引擎權限
         ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
         ui.silent.play().catch(e=>{});
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        }
+
         ui.loginSec.style.display = 'none'; ui.trackingSec.style.display = 'block'; ui.displayId.innerText = uid;
         
         watchId = navigator.geolocation.watchPosition((pos) => {
@@ -243,52 +248,70 @@
         location.reload();
     };
     
-    // 💡 徹底解決時間同步問題的接收邏輯
+    // 💡 核心修復：使用數值比較判斷新舊指令，徹底無視時間差
     function listenCmd(uid) {
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
         
-        let initForceOff = true;
-        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { 
-            if(initForceOff) { initForceOff = false; return; }
-            if (snap.exists()) location.reload(); 
-        });
-        
-        let initRetreat = true;
+        let lastRetreatId = null;
         onValue(ref(db, `tracking/commands/global/retreat`), (snap) => { 
-            if(initRetreat) { initRetreat = false; return; }
-            if (snap.exists()) {
-                playAlert('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退', '#ff0000'); 
+            const data = snap.val();
+            if (data && data.timestamp !== lastRetreatId) {
+                if (lastRetreatId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退', '#ff0000'); 
+                }
+                lastRetreatId = data.timestamp;
             }
         });
         
-        let initAlert = true;
+        let lastTargetAlertId = null;
         onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
-            if(initAlert) { initAlert = false; return; }
-            if (snap.exists()) playAlert('指揮中心發出緊急警報！', '#ff0055');
+            const data = snap.val();
+            if (data && data.timestamp !== lastTargetAlertId) {
+                if (lastTargetAlertId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('指揮中心發出緊急警報！', '#ff0055');
+                }
+                lastTargetAlertId = data.timestamp;
+            }
         });
         
-        let initCR = true;
+        let lastCRId = null;
         onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
-            if(initCR) { initCR = false; return; }
-            if (snap.exists()) playAlert('請支援CR', '#ffcc00');
+            const data = snap.val();
+            if (data && data.timestamp !== lastCRId) {
+                if (lastCRId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('請支援CR', '#ffcc00');
+                }
+                lastCRId = data.timestamp;
+            }
         });
 
-        let initPath = true;
+        let lastPathId = null;
         onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
-            if(initPath) { initPath = false; return; }
             const data = snap.val();
-            if (data) {
-                const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
-                ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
-                ui.nav.style.display = 'block';
-                playAlert('收到指定路徑任務', '#00ffaa');
+            if (data && data.timestamp !== lastPathId) {
+                if (lastPathId !== null || data.timestamp > Date.now() - 5000) {
+                    const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
+                    ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
+                    ui.nav.style.display = 'block';
+                    playAlert('收到指定路徑任務', '#00ffaa');
+                }
+                lastPathId = data.timestamp;
             }
         });
     }
 
+    // 💡 核心修復：強制清除語音佇列，保證一定會發聲
     function playAlert(msg, color) {
+        ui.snd.currentTime = 0;
         ui.snd.play().catch(e=>{});
-        const utter = new SpeechSynthesisUtterance(msg); utter.lang = 'zh-TW'; window.speechSynthesis.speak(utter);
+        
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // 清除卡住的語音
+            const utter = new SpeechSynthesisUtterance(msg); 
+            utter.lang = 'zh-TW'; 
+            window.speechSynthesis.speak(utter);
+        }
+
         document.body.style.backgroundColor = color; 
         setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 800);
     }

@@ -13,7 +13,6 @@
         .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%); transition: filter 0.5s ease; }
         #map.real-world-mode .leaflet-tile-pane { filter: none !important; }
         
-        /* 座標浮動顯示 HUD */
         #map-coord-overlay {
             display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000;
             background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffaa; color: #00ffaa;
@@ -21,7 +20,6 @@
             box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: auto; transition: opacity 0.3s;
         }
 
-        /* 💡 地圖下方常駐軌跡開關按鈕 (超高 z-index 確保不被遮蔽) */
         #map-bottom-controls {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000;
         }
@@ -37,7 +35,6 @@
 
         #sidebar { flex: 1; background: linear-gradient(135deg, #020608 0%, #05131a 100%); padding: 15px; display: flex; flex-direction: column; min-width: 420px; z-index: 10; box-shadow: -5px 0 15px rgba(0,243,255,0.05); }
         
-        /* 雙層工具列排版 */
         .toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(4, 122, 128, 0.5); }
         .toolbar-row { display: flex; gap: 6px; width: 100%; justify-content: space-between; }
         .toolbar button { flex: 1; background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 4px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.85em; }
@@ -67,7 +64,6 @@
         .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
 
-        /* 動作按鈕區塊 */
         .action-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; white-space: nowrap; }
         .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
@@ -80,7 +76,6 @@
         .remark-box:hover { border-left-color: #ffaa00; color: #ffaa00; background: rgba(255, 255, 255, 0.1); }
         .remark-box.expanded { white-space: normal; word-break: break-all; }
         
-        /* AI 判讀摺疊面板樣式 */
         .ai-box { margin-top: 6px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; cursor: pointer; user-select: none; transition: all 0.2s ease; }
         .ai-box:hover { border-color: #00f3ff; background: rgba(0, 243, 255, 0.05); }
         .ai-box.ai-severe { border-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
@@ -95,7 +90,6 @@
         #log-panel { height: 120px; border-top: 1px solid rgba(4, 122, 128, 0.5); font-size: 0.75em; overflow-y: auto; padding-top: 10px; margin-top: auto; color: #888; font-family: monospace; }
         input[type="checkbox"] { display: none; }
 
-        /* Modal 樣式：照片與 AI 報告 */
         #photoModal, #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,10,15,0.95); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; z-index: 100000; transition: all 0.2s;}
         .close-btn:hover { background: #ff0055; color: #fff; box-shadow: 0 0 15px #ff0055;}
@@ -114,11 +108,8 @@
 
 <div id="map-container">
     <div id="map"></div>
-    
-    <!-- 地圖上方座標 HUD -->
     <div id="map-coord-overlay"></div>
     
-    <!-- 💡 地圖下方常駐全域軌跡按鈕 -->
     <div id="map-bottom-controls">
         <button id="global-track-btn" class="map-floating-btn" onclick="toggleSelectAll()">📍 開啟全部歷史軌跡</button>
     </div>
@@ -144,7 +135,6 @@
     <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
-<!-- 影像檢視彈窗 -->
 <div id="photoModal">
     <button class="close-btn" onclick="closePhotoModal()">✖ 關閉</button>
     <div class="carousel-container">
@@ -157,7 +147,6 @@
     </div>
 </div>
 
-<!-- AI 報告彈窗 -->
 <div id="aiReportModal">
     <div class="report-box">
         <h2 style="color:#bb00ff; margin-top: 0; border-bottom: 1px solid #bb00ff; padding-bottom: 10px;">🤖 災防決策幕僚分析報告</h2>
@@ -197,11 +186,8 @@
     let currentModalPhotos = [], currentPhotoIndex = 0;
     let currentUsersData = {}; 
     let hudTimeout = null;
-
-    // 全域變數：追蹤 AI 面板展開狀態
     window.aiExpandedAll = false;
 
-    // 地圖點擊：自訂路徑規劃
     map.on('click', e => {
         plannedPath.push([e.latlng.lat, e.latlng.lng]);
         pathLine.setLatLngs(plannedPath);
@@ -209,19 +195,18 @@
         log(`登錄導航航點：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
     });
 
-    // 雷達鎖定與浮動座標顯示
     window.focusMap = (lat, lng, uid, battery) => {
         map.flyTo([lat, lng], 17, { duration: 1.2, easeLinearity: 0.25 });
         const overlay = document.getElementById('map-coord-overlay');
-        
         let batStr = (battery !== null && battery !== undefined) ? ` | ⚡ ${battery}%` : '';
+        const isTracked = activeTrackers.has(uid);
         
         overlay.innerHTML = `
             <div style="text-align: center;">
                 📍 目標 [${uid}] | 座標：${lat.toFixed(5)}, ${lng.toFixed(5)}${batStr}
                 <div style="margin-top: 10px;">
-                    <button id="hud-track-btn" onclick="toggleUserTrack('${uid}')" style="background:rgba(0,0,0,0.6); border:1px solid ${activeTrackers.has(uid) ? '#ff5500' : '#00ffaa'}; color:${activeTrackers.has(uid) ? '#ff5500' : '#00ffaa'}; padding:6px 16px; border-radius:6px; cursor:pointer; font-weight:bold; transition:all 0.2s;">
-                        ${activeTrackers.has(uid) ? "關閉單一歷史軌跡" : "開啟單一歷史軌跡"}
+                    <button id="hud-track-btn" onclick="toggleUserTrack('${uid}')" style="background:rgba(0,0,0,0.6); border:1px solid ${isTracked ? '#ff5500' : '#00ffaa'}; color:${isTracked ? '#ff5500' : '#00ffaa'}; padding:6px 16px; border-radius:6px; cursor:pointer; font-weight:bold; transition:all 0.2s;">
+                        ${isTracked ? "關閉單一歷史軌跡" : "開啟單一歷史軌跡"}
                     </button>
                 </div>
             </div>
@@ -233,7 +218,6 @@
         hudTimeout = setTimeout(() => overlay.style.display = 'none', 6000);
     };
 
-    // HUD 單一軌跡開關
     window.toggleUserTrack = (uid) => {
         const cb = document.querySelector(`.track-cb[data-uid="${uid}"]`);
         if(cb) {
@@ -249,12 +233,10 @@
             }
             if(hudTimeout) clearTimeout(hudTimeout);
             hudTimeout = setTimeout(() => document.getElementById('map-coord-overlay').style.display = 'none', 4000);
-            
-            syncGlobalButtonState(); // 同步下方大按鈕狀態
+            syncGlobalButtonState();
         }
     };
 
-    // Firebase 監聽
     onValue(ref(db, 'tracking/users'), snap => {
         currentUsersData = snap.val() || {};
         document.getElementById('user-list').innerHTML = '';
@@ -276,14 +258,28 @@
         syncGlobalButtonState();
     });
 
+    // 💡 修復：電腦端接收手機端全域警報的判斷
+    let initialGlobalAlert = true;
     onValue(ref(db, 'tracking/alerts/global'), (snap) => {
+        if (initialGlobalAlert) { initialGlobalAlert = false; return; }
         const data = snap.val();
-        if (data && data.timestamp > Date.now() - 5000) {
-            pcSound.play().catch(e=>{}); log(`⚠️ 截獲來自 ${data.triggerBy} 的緊急信號！`);
+        if (data && data.type === 'alarm' && data.timestamp > Date.now() - 5000) {
+            pcSound.play().catch(e=>{}); 
+            log(`⚠️ 截獲來自 ${data.triggerBy} 的緊急信號！`);
         }
     });
 
-    // 💡 完全重寫的 renderCard：使用安全 EventListener 防止引號導致的 Bug
+    // 💡 修復：電腦端接收手機端CR的判斷
+    let initialCrAlert = true;
+    onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
+        if (initialCrAlert) { initialCrAlert = false; return; }
+        const data = snap.val();
+        if (data && data.timestamp > Date.now() - 5000 && data.triggerBy !== 'HQ') {
+            pcSound.play().catch(e=>{});
+            log(`🔊 節點 ${data.triggerBy} 請求 CR 支援`);
+        }
+    });
+
     function renderCard(uid, u) {
         const div = document.createElement('div'); 
         const isTracked = activeTrackers.has(uid);
@@ -312,7 +308,6 @@
         
         const timeStr = new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12: false});
         
-        // AI 判讀摺疊面板
         let aiHtml = '';
         if (u.ai_analysis) {
             const ai = u.ai_analysis;
@@ -348,7 +343,7 @@
 
         div.innerHTML = `
             <div class="header-row">
-                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''}>
+                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} style="display:none;">
                 <span class="user-name ${nameClass}" title="鎖定地圖位置">${uid}</span> 
                 <div class="tags-container">
                     ${crTag} ${envTagHtml}
@@ -367,15 +362,14 @@
         `;
         document.getElementById('user-list').appendChild(div);
 
-        // 💡 安全綁定事件，徹底修復首位使用者 Bug
+        // 事件綁定區
         div.querySelector('.user-name').addEventListener('click', () => focusMap(u.lat, u.lng, uid, u.battery));
-        
         const remarkBox = div.querySelector('.remark-box');
         if (remarkBox) remarkBox.addEventListener('click', () => remarkBox.classList.toggle('expanded'));
-        
         const aiBox = div.querySelector('.ai-box');
         if (aiBox) aiBox.addEventListener('click', () => window.toggleAllAITags());
 
+        // 💡 電腦端發送指令至手機端
         div.querySelector('.btn-alert').addEventListener('click', () => sendCmd(uid, 'targeted_alert'));
         div.querySelector('.btn-call').addEventListener('click', () => sendCmd(uid, 'targeted_cr'));
         div.querySelector('.btn-path').addEventListener('click', () => sendPath(uid));
@@ -385,8 +379,8 @@
         if (btnPhoto) btnPhoto.addEventListener('click', () => showPhotoModal(uid));
 
         div.querySelector('.track-cb').addEventListener('change', (e) => {
-            if (e.target.checked) { activeTrackers.add(uid); updateMarker(uid, u); enableTrajectory(uid); } 
-            else { activeTrackers.delete(uid); removeMarker(uid); disableTrajectory(uid); }
+            if (e.target.checked) { activeTrackers.add(uid); enableTrajectory(uid); } 
+            else { activeTrackers.delete(uid); disableTrajectory(uid); }
             syncGlobalButtonState();
         });
     }
@@ -404,7 +398,6 @@
         if (markers[uid]) { markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); } 
         else { markers[uid] = L.circleMarker([u.lat, u.lng], {radius:7, color: color, weight: 1.5, fillOpacity: 0.1}).addTo(map); }
     }
-    
     function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
 
     function enableTrajectory(uid) {
@@ -421,7 +414,6 @@
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
     }
 
-    // 功能操作群
     window.toggleMapType = () => {
         if (!isSatelliteMode) { map.removeLayer(defaultLayer); satelliteLayer.addTo(map); contourLayer.addTo(map); document.getElementById('map').classList.add('real-world-mode'); log("切換至：衛星+地形"); } 
         else { map.removeLayer(satelliteLayer); map.removeLayer(contourLayer); defaultLayer.addTo(map); document.getElementById('map').classList.remove('real-world-mode'); log("切換至：科技地圖"); }
@@ -430,7 +422,6 @@
 
     window.clearPath = () => { plannedPath = []; pathLine.setLatLngs([]); pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; log("路徑標記已清空"); };
     
-    // 💡 雙向同步的軌跡全選按鈕
     window.syncGlobalButtonState = () => {
         const cbs = Array.from(document.querySelectorAll('.track-cb'));
         const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
@@ -450,12 +441,10 @@
         const cbs = Array.from(document.querySelectorAll('.track-cb'));
         const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
         const targetState = !allChecked;
-        
         cbs.forEach(cb => { if (cb.checked !== targetState) { cb.checked = targetState; cb.dispatchEvent(new Event('change')); }});
         syncGlobalButtonState();
     };
 
-    // 💡 點擊任一 AI 框即全域展開/收合
     window.toggleAllAITags = () => {
         window.aiExpandedAll = !window.aiExpandedAll;
         document.querySelectorAll('.ai-box').forEach(box => {
@@ -464,6 +453,7 @@
         });
     };
     
+    // 💡 電腦端指令送出 API
     window.allRetreat = () => { if(confirm('確定要對所有人員發布全域撤退？')) { set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() }); log("🚨 發布全體撤退指令"); }};
     window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`傳送指令至：${uid}`); };
     window.sendPath = uid => { if (plannedPath.length < 1) return alert("請先於地圖點擊以設置導航航點"); set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`路徑已發送至：${uid}`); };

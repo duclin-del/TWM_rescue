@@ -18,10 +18,10 @@
             display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000;
             background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffaa; color: #00ffaa;
             padding: 12px 24px; border-radius: 8px; font-family: monospace; font-size: 1.1em; font-weight: bold;
-            box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: auto; transition: opacity 0.3s;
+            box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: none; transition: opacity 0.3s;
         }
 
-        /* 地圖下方常駐軌跡開關按鈕 */
+        /* 💡 地圖下方常駐：歷史軌跡總圖層開關 */
         #map-bottom-controls {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000;
         }
@@ -54,10 +54,13 @@
         
         .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 4px; flex-wrap: wrap; }
         
+        /* 💡 恢復核取方塊並美化 */
+        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 8px; cursor: pointer; }
+        
         .user-name { font-weight: bold; color: #00f3ff; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
         .user-name:hover { background: rgba(0, 243, 255, 0.1); outline: 1px solid #00f3ff; text-shadow: 0 0 8px #00f3ff; }
         
-        .tags-container { display: flex; gap: 4px; margin-left: 10px; align-items: center; flex-wrap: wrap; flex: 1; }
+        .tags-container { display: flex; gap: 4px; margin-left: 5px; align-items: center; flex-wrap: wrap; flex: 1; }
         .time-badge { margin-left: auto; font-size: 0.75em; color: #888; font-family: monospace; }
         
         .tag-outline { border: 1px solid currentColor; color: #00ffaa; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }
@@ -91,8 +94,8 @@
         .ai-box.expanded .toggle-icon { transform: rotate(180deg); color: #00f3ff; }
         
         #log-panel { height: 120px; border-top: 1px solid rgba(4, 122, 128, 0.5); font-size: 0.75em; overflow-y: auto; padding-top: 10px; margin-top: auto; color: #888; font-family: monospace; }
-        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 5px; cursor: pointer; }
 
+        /* Modal 樣式：照片與 AI 報告 */
         #photoModal, #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,10,15,0.95); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; z-index: 100000; transition: all 0.2s;}
         .close-btn:hover { background: #ff0055; color: #fff; box-shadow: 0 0 15px #ff0055;}
@@ -111,12 +114,12 @@
 
 <div id="map-container">
     <div id="map"></div>
-    <!-- 地圖上方座標 HUD (加入電量) -->
+    <!-- 地圖上方座標 HUD (移除了按鈕，純顯示資訊) -->
     <div id="map-coord-overlay"></div>
     
-    <!-- 地圖下方常駐軌跡總圖層開關按鈕 -->
+    <!-- 💡 地圖下方常駐：歷史軌跡總圖層開關 -->
     <div id="map-bottom-controls">
-        <button id="global-layer-btn" class="map-floating-btn" onclick="toggleGlobalLayer()">👁️ 隱藏歷史軌跡</button>
+        <button id="global-layer-btn" class="map-floating-btn" onclick="toggleGlobalLayer()">👁️ 隱藏歷史軌跡 (僅顯示光點)</button>
     </div>
 </div>
 
@@ -186,10 +189,11 @@
     let plannedPath = [], pathMarkers = [];
     let pathLine = L.polyline([], {color:'#00ffaa', weight:3, dashArray:'5,10'}).addTo(map);
     
-    // 軌跡圖層
+    // 💡 將歷史軌跡獨立放到一個圖層群組中
     const trajectoryGroup = L.layerGroup().addTo(map);
     let isGlobalTrajectoryVisible = true;
 
+    // 💡 activeTrackers 現在代表「有打勾、允許顯示在圖面上(包含光點與路線)的使用者」
     const activeTrackers = new Set(); 
     let knownUsers = new Set();       
     const markers = {}, polylines = {}, hListeners = {};
@@ -236,42 +240,49 @@
         Object.keys(currentUsersData).forEach(uid => {
             const u = currentUsersData[uid];
             if (u.status === 'active') {
+                // 新進使用者預設打勾顯示
                 if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
                 
-                updateMarker(uid, u);
                 renderCard(uid, u);
                 
-                if (activeTrackers.has(uid)) { enableTrajectory(uid); } 
-                else { disableTrajectory(uid); }
+                // 💡 根據打勾狀態決定是否顯示光點與軌跡
+                if (activeTrackers.has(uid)) { 
+                    updateMarker(uid, u); 
+                    enableTrajectory(uid); 
+                } else { 
+                    removeMarker(uid); 
+                    disableTrajectory(uid); 
+                }
             } else {
                 renderOffline(uid, u);
                 if (activeTrackers.has(uid)) activeTrackers.delete(uid);
                 removeMarker(uid); disableTrajectory(uid);
             }
         });
+        syncSelectAllBtn();
     });
 
-    // 💡 電腦端接收手機端緊急警報
+    // 電腦端接收警報
+    let initialGlobalAlert = true;
     onValue(ref(db, 'tracking/alerts/global'), (snap) => {
+        if (initialGlobalAlert) { initialGlobalAlert = false; return; }
         const data = snap.val();
-        if (data && data.timestamp > Date.now() - 5000) {
+        if (data && data.type === 'alarm' && data.timestamp > Date.now() - 5000) {
             pcSound.play().catch(e=>{}); 
             log(`⚠️ 截獲來自 ${data.triggerBy} 的緊急信號！`);
         }
     });
 
-    // 💡 電腦端接收手機端 CR 呼叫，並透過語音念出「請支援CR」
+    // 電腦端接收 CR 呼叫
     let initialCrAlert = true;
     onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
         if (initialCrAlert) { initialCrAlert = false; return; }
         const data = snap.val();
         if (data && data.timestamp > Date.now() - 5000 && data.triggerBy !== 'HQ') {
             pcSound.play().catch(e=>{});
-            // 語音播報
             const utter = new SpeechSynthesisUtterance('請支援CR');
             utter.lang = 'zh-TW';
             window.speechSynthesis.speak(utter);
-            
             log(`🔊 節點 ${data.triggerBy} 請求 CR 支援`);
         }
     });
@@ -337,9 +348,10 @@
             photoBtnHtml = `<button class="action-btn btn-photo">檢視照片(${u.images.length})</button>`;
         }
 
+        // 💡 介面：恢復核取方塊
         div.innerHTML = `
             <div class="header-row">
-                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="繪製此人軌跡">
+                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="勾選以顯示此人員位置與軌跡">
                 <span class="user-name ${nameClass}" title="鎖定地圖位置">${uid}</span> 
                 <div class="tags-container">
                     ${crTag} ${envTagHtml}
@@ -372,9 +384,18 @@
         const btnPhoto = div.querySelector('.btn-photo');
         if (btnPhoto) btnPhoto.addEventListener('click', () => showPhotoModal(uid));
 
+        // 💡 邏輯：打勾顯示光點與軌跡，取消打勾完全隱藏
         div.querySelector('.track-cb').addEventListener('change', (e) => {
-            if (e.target.checked) { activeTrackers.add(uid); enableTrajectory(uid); } 
-            else { activeTrackers.delete(uid); disableTrajectory(uid); }
+            if (e.target.checked) { 
+                activeTrackers.add(uid); 
+                updateMarker(uid, u); 
+                enableTrajectory(uid); 
+            } else { 
+                activeTrackers.delete(uid); 
+                removeMarker(uid); 
+                disableTrajectory(uid); 
+            }
+            syncSelectAllBtn();
         });
     }
 
@@ -384,6 +405,7 @@
         document.getElementById('offline-list').appendChild(div);
     }
 
+    // 光點繪製在主要 map 上
     function updateMarker(uid, u) {
         let color = '#00f3ff';
         if (u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高')) color = '#ff0055'; 
@@ -393,6 +415,7 @@
     }
     function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
 
+    // 💡 歷史軌跡繪製在 trajectoryGroup 圖層上
     function enableTrajectory(uid) {
         if (!hListeners[uid]) {
             hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
@@ -407,13 +430,13 @@
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
     }
 
-    // 地圖下方圖層總開關
+    // 💡 地圖下方按鈕：一鍵開關歷史軌跡圖層 (不影響光點)
     window.toggleGlobalLayer = () => {
         isGlobalTrajectoryVisible = !isGlobalTrajectoryVisible;
         const btn = document.getElementById('global-layer-btn');
         if (isGlobalTrajectoryVisible) {
             map.addLayer(trajectoryGroup);
-            btn.innerText = "👁️ 隱藏歷史軌跡";
+            btn.innerText = "👁️ 隱藏歷史軌跡 (僅顯示光點)";
             btn.classList.remove('layer-hidden');
         } else {
             map.removeLayer(trajectoryGroup);
@@ -422,12 +445,36 @@
         }
     };
 
+    window.syncSelectAllBtn = () => {
+        const cbs = Array.from(document.querySelectorAll('.track-cb'));
+        const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
+        const sideBtn = document.getElementById('toggleAllBtn');
+        if(sideBtn) sideBtn.innerText = allChecked ? "不選" : "全選";
+    };
+
+    // 上方工具列：控制所有使用者的核取方塊
     window.toggleSelectAll = () => {
         const cbs = Array.from(document.querySelectorAll('.track-cb'));
         const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
         const targetState = !allChecked;
         
-        cbs.forEach(cb => { if (cb.checked !== targetState) { cb.checked = targetState; cb.dispatchEvent(new Event('change')); }});
+        cbs.forEach(cb => { 
+            if (cb.checked !== targetState) { 
+                cb.checked = targetState; 
+                // 手動觸發邏輯以避免與重繪衝突
+                const uid = cb.getAttribute('data-uid');
+                if (targetState) {
+                    activeTrackers.add(uid);
+                    updateMarker(uid, currentUsersData[uid]);
+                    enableTrajectory(uid);
+                } else {
+                    activeTrackers.delete(uid);
+                    removeMarker(uid);
+                    disableTrajectory(uid);
+                }
+            }
+        });
+        window.syncSelectAllBtn();
     };
 
     window.toggleAllAITags = () => {

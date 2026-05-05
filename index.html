@@ -196,7 +196,8 @@
         update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
         set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
-        ui.snd.play().catch(e=>{}); 
+        // 本地立刻回饋音效
+        playAlert('發出緊急警報', '#ff0055'); 
     };
 
     document.getElementById('crBtn').onclick = () => {
@@ -205,6 +206,8 @@
         update(ref(db, `tracking/users/${uid}`), { needCR: true });
         set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
+        // 💡 本地立刻回饋音效
+        playAlert('請支援CR', '#ffcc00'); 
     };
 
     ui.start.onclick = () => {
@@ -240,31 +243,41 @@
         location.reload();
     };
     
+    // 💡 徹底解決時間同步問題的接收邏輯
     function listenCmd(uid) {
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
-        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) location.reload(); });
         
+        let initForceOff = true;
+        onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { 
+            if(initForceOff) { initForceOff = false; return; }
+            if (snap.exists()) location.reload(); 
+        });
+        
+        let initRetreat = true;
         onValue(ref(db, `tracking/commands/global/retreat`), (snap) => { 
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) {
-                // 💡 更新：全域撤退的精確語音播報
+            if(initRetreat) { initRetreat = false; return; }
+            if (snap.exists()) {
                 playAlert('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退', '#ff0000'); 
             }
         });
         
+        let initAlert = true;
         onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心發出緊急警報！', '#ff0055');
+            if(initAlert) { initAlert = false; return; }
+            if (snap.exists()) playAlert('指揮中心發出緊急警報！', '#ff0055');
         });
         
+        let initCR = true;
         onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) {
-                // 💡 更新：被電腦端點名 CR 時的精確語音播報
-                playAlert('請支援CR', '#ffcc00');
-            }
+            if(initCR) { initCR = false; return; }
+            if (snap.exists()) playAlert('請支援CR', '#ffcc00');
         });
 
+        let initPath = true;
         onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
+            if(initPath) { initPath = false; return; }
             const data = snap.val();
-            if (data && data.timestamp > Date.now() - 5000) {
+            if (data) {
                 const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
                 ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
                 ui.nav.style.display = 'block';

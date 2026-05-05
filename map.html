@@ -167,7 +167,11 @@
 
     // 💡 本機測試時請填入真實 Key
     const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
-    const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
+    // 💡 模型備援陣列
+    const OPENROUTER_MODELS = [
+        "nvidia/nemotron-3-super-120b-a12b:free", 
+        "google/gemini-2.0-flash-exp:free"
+    ];
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -538,42 +542,57 @@
 
         const content = document.getElementById('aiReportContent');
         document.getElementById('aiReportModal').style.display = 'flex';
-        content.innerText = "🤖 幕僚演算中...";
+        content.innerText = "🤖 幕僚演算中 (嘗試首選模型)...";
 
-        try {
-            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: { 
-                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com",
-                    "X-Title": "Rescue Dashboard"
-                },
-                body: JSON.stringify({
-                    model: OPENROUTER_MODEL,
-                    messages: [{ role: "user", content: `你是災防指揮官。分析以下數據並給出「災情大綱」與「處理優先權」：${JSON.stringify(activeUsers)}` }]
-                })
-            });
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.error?.message || `HTTP ${res.status}`);
-            }
+        let success = false;
+        let lastErrorMsg = "";
 
-            if (data.choices && data.choices.length > 0) {
-                currentReportText = data.choices[0].message.content;
-                content.innerHTML = currentReportText
-                    .replace(/## (.*?)\n/g, '<h3 style="color:#00f3ff; margin-top:20px; border-bottom:1px solid #333;">$1</h3>')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffaa00;">$1</strong>');
-            } else {
-                throw new Error("API 回傳格式異常");
+        // 💡 雙模型備援邏輯
+        for (const model of OPENROUTER_MODELS) {
+            try {
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: { 
+                        "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com",
+                        "X-Title": "Rescue Dashboard"
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: `你是災防指揮官。分析以下數據並給出「災情大綱」與「處理優先權」：${JSON.stringify(activeUsers)}` }]
+                    })
+                });
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+
+                if (data.choices && data.choices.length > 0) {
+                    currentReportText = data.choices[0].message.content;
+                    const modelNameShort = model.split('/')[1].split('-')[0].toUpperCase();
+                    content.innerHTML = `<div style="font-size: 0.8em; color: #00ffaa; margin-bottom: 10px;">✅ 生成模型: ${modelNameShort}</div>` + 
+                        currentReportText
+                        .replace(/## (.*?)\n/g, '<h3 style="color:#00f3ff; margin-top:20px; border-bottom:1px solid #333;">$1</h3>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffaa00;">$1</strong>');
+                    success = true;
+                    break;
+                } else {
+                    throw new Error("API 回傳格式異常");
+                }
+            } catch (e) {
+                console.warn(`[${model}] 失敗:`, e);
+                lastErrorMsg = e.message;
+                content.innerText = `🤖 幕僚演算中 (切換備用模型)...`;
             }
-        } catch (e) {
-            console.error("OpenRouter API 錯誤詳細資訊:", e);
-            currentReportText = JSON.stringify(activeUsers, null, 2) + `\n\n(API 錯誤: ${e.message})`;
+        }
+
+        if (!success) {
+            console.error("所有模型皆失敗:", lastErrorMsg);
+            currentReportText = JSON.stringify(activeUsers, null, 2) + `\n\n(API 錯誤: ${lastErrorMsg})`;
             content.innerHTML = `<pre style="color:#aaa;">${currentReportText}</pre>`;
         }
     };
+    
     window.downloadAIReport = () => {
         if (!currentReportText) return;
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([currentReportText], {type: "text/plain;charset=utf-8"}));

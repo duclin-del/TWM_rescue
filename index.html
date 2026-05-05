@@ -9,7 +9,8 @@
         .container { background: rgba(0, 20, 30, 0.85); backdrop-filter: blur(10px); border: 1px solid #047a80; border-radius: 12px; box-shadow: 0 0 20px rgba(0, 243, 255, 0.15); padding: 20px; width: 92%; max-width: 400px; text-align: center; max-height: 95vh; overflow-y: auto; }
         .modern-input { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.6); color: #00ffaa; border: 1px solid #047a80; padding: 14px; border-radius: 8px; font-size: 1.1em; text-align: center; margin-bottom: 15px; outline: none; transition: border-color 0.3s; }
         .modern-input:focus { border-color: #00ffaa; box-shadow: 0 0 10px rgba(0,255,170,0.3); }
-        .primary-btn { width: 100%; padding: 15px; font-size: 1.1em; background: rgba(0, 243, 255, 0.1); border-radius: 8px; border: 1px solid #00f3ff; color: #00f3ff; font-weight: bold; cursor: pointer; }
+        .primary-btn { width: 100%; padding: 15px; font-size: 1.1em; background: rgba(0, 243, 255, 0.1); border-radius: 8px; border: 1px solid #00f3ff; color: #00f3ff; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .primary-btn:hover { background: #00f3ff; color: #000; }
         
         .task-header { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 0.9em; border-left: 3px solid #00ffaa; text-align: left; display: flex; align-items: center; justify-content: space-between;}
         .pulse-dot { display: inline-block; width: 8px; height: 8px; background: #00ffaa; border-radius: 50%; box-shadow: 0 0 8px #00ffaa; animation: pulse 1.5s infinite; margin-right: 8px; }
@@ -119,10 +120,12 @@
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
     import { firebaseConfig } from './firebase-config.js'; 
 
-    // 💡 本機測試時，請務必將這串換成真實的 OpenRouter API Key
-    const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY"; 
-    // 💡 已替換為穩定且免費的 Gemini 2.0 模型
-    const OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free";
+    const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
+    // 💡 設定模型陣列（優先使用首選，失敗則自動切換備用）
+    const OPENROUTER_MODELS = [
+        "nvidia/nemotron-3-super-120b-a12b:free", 
+        "google/gemini-2.0-flash-exp:free"
+    ];
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -213,36 +216,52 @@
         let text = ui.remarkInput.value.trim();
         if (!uid || !text) return;
         ui.remarkBtn.disabled = true; ui.aiStatus.style.display = 'block';
+        ui.aiStatus.innerText = "🤖 AI 解析中...";
         if (navigator.vibrate) navigator.vibrate(30);
         
         let aiAnalysis = null;
-        try {
-            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: { 
-                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://github.com",
-                    "X-Title": "Rescue Terminal"
-                },
-                body: JSON.stringify({
-                    model: OPENROUTER_MODEL,
-                    messages: [{ role: "user", content: `將通報內容轉為JSON (不可包含Markdown)：{"event":"","casualties":"","needs":[],"urgency":"高/中/低"} 內容：${text}` }]
-                })
-            });
-            const data = await res.json();
-            
-            if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-            
-            if (data.choices && data.choices.length > 0) {
-                let cleanJson = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
-                aiAnalysis = JSON.parse(cleanJson);
-                ui.aiStatus.innerText = "🤖 解析完成";
-            } else { throw new Error("API異常"); }
-        } catch (e) {
-            console.error("OpenRouter API 錯誤:", e);
-            // 💡 強化錯誤顯示：清楚印出死因
-            text += ` (API錯誤: ${e.message})`; 
+        let success = false;
+        let lastErrorMsg = "";
+
+        // 💡 模型備援邏輯 (Fallback)
+        for (const model of OPENROUTER_MODELS) {
+            try {
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: { 
+                        "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com",
+                        "X-Title": "Rescue Terminal"
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: `將通報內容轉為JSON (不可包含Markdown)：{"event":"","casualties":"","needs":[],"urgency":"高/中/低"} 內容：${text}` }]
+                    })
+                });
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+                
+                if (data.choices && data.choices.length > 0) {
+                    let cleanJson = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
+                    aiAnalysis = JSON.parse(cleanJson);
+                    // 顯示成功使用的是哪個模型
+                    const modelNameShort = model.split('/')[1].split('-')[0].toUpperCase();
+                    ui.aiStatus.innerText = `🤖 解析完成 (${modelNameShort})`;
+                    success = true;
+                    break; // 成功解析，跳出迴圈
+                } else { 
+                    throw new Error("API異常"); 
+                }
+            } catch (e) {
+                console.warn(`[${model}] 失敗:`, e);
+                lastErrorMsg = e.message;
+            }
+        }
+
+        if (!success) {
+            text += ` (API錯誤: ${lastErrorMsg})`; 
             ui.aiStatus.innerText = "⚠️ API失敗";
         }
         

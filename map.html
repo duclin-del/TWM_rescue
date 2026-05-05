@@ -13,15 +13,13 @@
         .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%); transition: filter 0.5s ease; }
         #map.real-world-mode .leaflet-tile-pane { filter: none !important; }
         
-        /* 座標浮動顯示 HUD */
         #map-coord-overlay {
             display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000;
             background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffaa; color: #00ffaa;
             padding: 12px 24px; border-radius: 8px; font-family: monospace; font-size: 1.1em; font-weight: bold;
-            box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: none; transition: opacity 0.3s;
+            box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: auto; transition: opacity 0.3s;
         }
 
-        /* 💡 地圖下方常駐：歷史軌跡總圖層開關 */
         #map-bottom-controls {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000;
         }
@@ -36,7 +34,6 @@
 
         #sidebar { flex: 1; background: linear-gradient(135deg, #020608 0%, #05131a 100%); padding: 15px; display: flex; flex-direction: column; min-width: 420px; z-index: 10; box-shadow: -5px 0 15px rgba(0,243,255,0.05); }
         
-        /* 雙層工具列排版 */
         .toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(4, 122, 128, 0.5); }
         .toolbar-row { display: flex; gap: 6px; width: 100%; justify-content: space-between; }
         .toolbar button { flex: 1; background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 4px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.85em; }
@@ -54,7 +51,6 @@
         
         .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 4px; flex-wrap: wrap; }
         
-        /* 💡 恢復核取方塊並美化 */
         input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 8px; cursor: pointer; }
         
         .user-name { font-weight: bold; color: #00f3ff; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
@@ -69,7 +65,12 @@
         .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
         @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
 
-        .action-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        /* 💡 核心變更：動態隱藏動作按鈕區塊 */
+        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; animation: fadeIn 0.3s ease; }
+        /* 當外層卡片擁有 active-focus 屬性時，才顯示按鈕面板 */
+        .user-card.active-focus .action-grid { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
         .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; white-space: nowrap; }
         .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
         .btn-call { border-color: #ffcc00; color: #ffcc00; } .btn-call:hover { background: #ffcc00; color: #000; }
@@ -81,7 +82,6 @@
         .remark-box:hover { border-left-color: #ffaa00; color: #ffaa00; background: rgba(255, 255, 255, 0.1); }
         .remark-box.expanded { white-space: normal; word-break: break-all; }
         
-        /* AI 判讀摺疊面板樣式 */
         .ai-box { margin-top: 6px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; cursor: pointer; user-select: none; transition: all 0.2s ease; }
         .ai-box:hover { border-color: #00f3ff; background: rgba(0, 243, 255, 0.05); }
         .ai-box.ai-severe { border-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
@@ -95,7 +95,6 @@
         
         #log-panel { height: 120px; border-top: 1px solid rgba(4, 122, 128, 0.5); font-size: 0.75em; overflow-y: auto; padding-top: 10px; margin-top: auto; color: #888; font-family: monospace; }
 
-        /* Modal 樣式：照片與 AI 報告 */
         #photoModal, #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,10,15,0.95); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; z-index: 100000; transition: all 0.2s;}
         .close-btn:hover { background: #ff0055; color: #fff; box-shadow: 0 0 15px #ff0055;}
@@ -114,10 +113,8 @@
 
 <div id="map-container">
     <div id="map"></div>
-    <!-- 地圖上方座標 HUD (移除了按鈕，純顯示資訊) -->
     <div id="map-coord-overlay"></div>
     
-    <!-- 💡 地圖下方常駐：歷史軌跡總圖層開關 -->
     <div id="map-bottom-controls">
         <button id="global-layer-btn" class="map-floating-btn" onclick="toggleGlobalLayer()">👁️ 隱藏歷史軌跡 (僅顯示光點)</button>
     </div>
@@ -143,7 +140,6 @@
     <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 </div>
 
-<!-- 影像檢視彈窗 -->
 <div id="photoModal">
     <button class="close-btn" onclick="closePhotoModal()">✖ 關閉</button>
     <div class="carousel-container">
@@ -156,7 +152,6 @@
     </div>
 </div>
 
-<!-- AI 報告彈窗 -->
 <div id="aiReportModal">
     <div class="report-box">
         <h2 style="color:#bb00ff; margin-top: 0; border-bottom: 1px solid #bb00ff; padding-bottom: 10px;">🤖 災防決策幕僚分析報告</h2>
@@ -189,11 +184,9 @@
     let plannedPath = [], pathMarkers = [];
     let pathLine = L.polyline([], {color:'#00ffaa', weight:3, dashArray:'5,10'}).addTo(map);
     
-    // 💡 將歷史軌跡獨立放到一個圖層群組中
     const trajectoryGroup = L.layerGroup().addTo(map);
     let isGlobalTrajectoryVisible = true;
 
-    // 💡 activeTrackers 現在代表「有打勾、允許顯示在圖面上(包含光點與路線)的使用者」
     const activeTrackers = new Set(); 
     let knownUsers = new Set();       
     const markers = {}, polylines = {}, hListeners = {};
@@ -203,8 +196,10 @@
     let hudTimeout = null;
 
     window.aiExpandedAll = false;
+    
+    // 💡 追蹤當前被聚焦的使用者 ID
+    window.focusedUid = null;
 
-    // 地圖點擊：自訂路徑規劃
     map.on('click', e => {
         plannedPath.push([e.latlng.lat, e.latlng.lng]);
         pathLine.setLatLngs(plannedPath);
@@ -212,8 +207,23 @@
         log(`登錄導航航點：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
     });
 
-    // 雷達鎖定與浮動座標顯示
+    // 💡 地圖縮放監聽：若縮放比例小於特寫比例 (16)，自動收合所有動作按鈕
+    map.on('zoomend', () => {
+        if (map.getZoom() < 16) {
+            window.focusedUid = null;
+            document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-focus'));
+        }
+    });
+
     window.focusMap = (lat, lng, uid, battery) => {
+        // 設定當前追蹤的 UID
+        window.focusedUid = uid;
+        
+        // 切換顯示狀態
+        document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-focus'));
+        const targetCard = document.getElementById(`user-card-${uid}`);
+        if(targetCard) targetCard.classList.add('active-focus');
+
         map.flyTo([lat, lng], 17, { duration: 1.2, easeLinearity: 0.25 });
         const overlay = document.getElementById('map-coord-overlay');
         
@@ -231,7 +241,6 @@
         hudTimeout = setTimeout(() => overlay.style.display = 'none', 4000);
     };
 
-    // Firebase 監聽
     onValue(ref(db, 'tracking/users'), snap => {
         currentUsersData = snap.val() || {};
         document.getElementById('user-list').innerHTML = '';
@@ -240,12 +249,10 @@
         Object.keys(currentUsersData).forEach(uid => {
             const u = currentUsersData[uid];
             if (u.status === 'active') {
-                // 新進使用者預設打勾顯示
                 if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
                 
                 renderCard(uid, u);
                 
-                // 💡 根據打勾狀態決定是否顯示光點與軌跡
                 if (activeTrackers.has(uid)) { 
                     updateMarker(uid, u); 
                     enableTrajectory(uid); 
@@ -262,7 +269,6 @@
         syncSelectAllBtn();
     });
 
-    // 電腦端接收警報
     let initialGlobalAlert = true;
     onValue(ref(db, 'tracking/alerts/global'), (snap) => {
         if (initialGlobalAlert) { initialGlobalAlert = false; return; }
@@ -273,7 +279,6 @@
         }
     });
 
-    // 電腦端接收 CR 呼叫
     let initialCrAlert = true;
     onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
         if (initialCrAlert) { initialCrAlert = false; return; }
@@ -289,9 +294,17 @@
 
     function renderCard(uid, u) {
         const div = document.createElement('div'); 
+        // 賦予獨立 ID 以利查找切換樣式
+        div.id = `user-card-${uid}`;
+        
         const isTracked = activeTrackers.has(uid);
         const isSevere = u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高');
         div.className = `user-card ${isSevere ? 'severe' : ''}`;
+        
+        // 💡 如果重新渲染時，該卡片正在被聚焦，且地圖符合比例，則保留展開狀態
+        if (window.focusedUid === uid && map.getZoom() >= 16) {
+            div.classList.add('active-focus');
+        }
         
         const nameClass = u.isAlarm ? 'flash-name' : '';
         const crTag = u.needCR ? `<span class="tag-outline" style="color:#ffcc00; border-color:#ffcc00;">請求CR</span>` : '';
@@ -348,7 +361,6 @@
             photoBtnHtml = `<button class="action-btn btn-photo">檢視照片(${u.images.length})</button>`;
         }
 
-        // 💡 介面：恢復核取方塊
         div.innerHTML = `
             <div class="header-row">
                 <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="勾選以顯示此人員位置與軌跡">
@@ -384,7 +396,6 @@
         const btnPhoto = div.querySelector('.btn-photo');
         if (btnPhoto) btnPhoto.addEventListener('click', () => showPhotoModal(uid));
 
-        // 💡 邏輯：打勾顯示光點與軌跡，取消打勾完全隱藏
         div.querySelector('.track-cb').addEventListener('change', (e) => {
             if (e.target.checked) { 
                 activeTrackers.add(uid); 
@@ -405,7 +416,6 @@
         document.getElementById('offline-list').appendChild(div);
     }
 
-    // 光點繪製在主要 map 上
     function updateMarker(uid, u) {
         let color = '#00f3ff';
         if (u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高')) color = '#ff0055'; 
@@ -415,7 +425,6 @@
     }
     function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
 
-    // 💡 歷史軌跡繪製在 trajectoryGroup 圖層上
     function enableTrajectory(uid) {
         if (!hListeners[uid]) {
             hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
@@ -430,7 +439,6 @@
         if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
     }
 
-    // 💡 地圖下方按鈕：一鍵開關歷史軌跡圖層 (不影響光點)
     window.toggleGlobalLayer = () => {
         isGlobalTrajectoryVisible = !isGlobalTrajectoryVisible;
         const btn = document.getElementById('global-layer-btn');
@@ -452,7 +460,6 @@
         if(sideBtn) sideBtn.innerText = allChecked ? "不選" : "全選";
     };
 
-    // 上方工具列：控制所有使用者的核取方塊
     window.toggleSelectAll = () => {
         const cbs = Array.from(document.querySelectorAll('.track-cb'));
         const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
@@ -461,7 +468,6 @@
         cbs.forEach(cb => { 
             if (cb.checked !== targetState) { 
                 cb.checked = targetState; 
-                // 手動觸發邏輯以避免與重繪衝突
                 const uid = cb.getAttribute('data-uid');
                 if (targetState) {
                     activeTrackers.add(uid);
@@ -485,7 +491,6 @@
         });
     };
 
-    // 其他操作
     window.toggleMapType = () => {
         if (!isSatelliteMode) { map.removeLayer(defaultLayer); satelliteLayer.addTo(map); contourLayer.addTo(map); document.getElementById('map').classList.add('real-world-mode'); log("切換至：衛星+地形"); } 
         else { map.removeLayer(satelliteLayer); map.removeLayer(contourLayer); defaultLayer.addTo(map); document.getElementById('map').classList.remove('real-world-mode'); log("切換至：科技地圖"); }

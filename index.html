@@ -190,17 +190,15 @@
         setTimeout(() => ui.aiStatus.style.display = 'none', 3000);
     };
 
-    // 💡 修復：手機端發送警報至電腦端
     document.getElementById('warnBtn').onclick = () => {
         const uid = ui.userId.value.trim();
         if (!uid || !watchId) return;
         update(ref(db, `tracking/users/${uid}`), { isAlarm: true });
         set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
         setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
-        ui.snd.play().catch(e=>{}); // 本地提示音
+        ui.snd.play().catch(e=>{}); 
     };
 
-    // 💡 修復：手機端發送CR呼叫至電腦端
     document.getElementById('crBtn').onclick = () => {
         const uid = ui.userId.value.trim();
         if (!uid || !watchId) return;
@@ -242,7 +240,6 @@
         location.reload();
     };
     
-    // 💡 修復：手機端監聽來自電腦端的指令
     function listenCmd(uid) {
         onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
         onValue(ref(db, `tracking/commands/${uid}/force_offline`), (snap) => { if (snap.exists() && snap.val().timestamp > Date.now() - 5000) location.reload(); });
@@ -256,7 +253,8 @@
         });
         
         onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
-            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('指揮中心呼叫，請支援 CR！', '#ffcc00');
+            // 💡 修改：手機接收到電腦端呼叫，精準報出「請支援CR」
+            if (snap.exists() && snap.val().timestamp > Date.now() - 5000) playAlert('請支援CR', '#ffcc00');
         });
 
         onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {

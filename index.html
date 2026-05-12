@@ -2,170 +2,124 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>戰情儀表板 (Analysis)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>災防通報系統 - 手機端</title>
     <style>
-        body { margin: 0; background: #05090c; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        body { background-color: #0a0a0a; color: #00f3ff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s ease; }
+        .container { background: rgba(0, 20, 30, 0.85); backdrop-filter: blur(10px); border: 1px solid #047a80; border-radius: 12px; box-shadow: 0 0 20px rgba(0, 243, 255, 0.15); padding: 20px; width: 92%; max-width: 400px; text-align: center; max-height: 95vh; overflow-y: auto; }
+        .modern-input { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.6); color: #00ffaa; border: 1px solid #047a80; padding: 14px; border-radius: 8px; font-size: 1.1em; text-align: center; margin-bottom: 15px; outline: none; transition: border-color 0.3s; }
+        .modern-input:focus { border-color: #00ffaa; box-shadow: 0 0 10px rgba(0,255,170,0.3); }
+        .primary-btn { width: 100%; padding: 15px; font-size: 1.1em; background: rgba(0, 243, 255, 0.1); border-radius: 8px; border: 1px solid #00f3ff; color: #00f3ff; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .primary-btn:hover { background: #00f3ff; color: #000; }
         
-        #map-container { flex: 3; position: relative; border-right: 1px solid #047a80; box-shadow: inset -5px 0 15px rgba(0,0,0,0.5); }
-        #map { width: 100%; height: 100%; background: #020405; }
-        .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(110%); transition: filter 0.5s ease; }
-        #map.real-world-mode .leaflet-tile-pane { filter: none !important; }
+        .task-header { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 0.9em; border-left: 3px solid #00ffaa; text-align: left; display: flex; align-items: center; justify-content: space-between;}
+        .pulse-dot { display: inline-block; width: 8px; height: 8px; background: #00ffaa; border-radius: 50%; box-shadow: 0 0 8px #00ffaa; animation: pulse 1.5s infinite; margin-right: 8px; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .data-panel { background: rgba(0,0,0,0.4); border: 1px solid #333; padding: 10px 15px; margin-bottom: 15px; border-radius: 6px; font-family: monospace; font-size: 0.85em; text-align: left; display: flex; justify-content: space-between; color: #aaa; }
+        .data-val { color: #fff; font-weight: bold; }
         
-        #map-coord-overlay {
-            display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000;
-            background: rgba(0, 20, 30, 0.85); border: 1px solid #00ffaa; color: #00ffaa;
-            padding: 12px 24px; border-radius: 8px; font-family: monospace; font-size: 1.1em; font-weight: bold;
-            box-shadow: 0 0 15px rgba(0, 255, 170, 0.3); pointer-events: auto; transition: opacity 0.3s;
+        .action-row { display: flex; gap: 8px; margin-bottom: 15px; }
+        .action-row button { margin: 0; padding: 12px 5px; border-radius: 6px; flex: 1; border: 1px solid; background: transparent; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .action-row button:active { transform: scale(0.95); }
+        .stop-btn { flex: 0.7 !important; border-color: #666 !important; color: #888 !important; font-size: 0.85em !important; }
+        .warning-btn { border-color: #ff0055 !important; color: #ff0055 !important; }
+        .warning-btn:active { background: #ff0055; color: #fff; }
+        .cr-btn { border-color: #ffcc00 !important; color: #ffcc00 !important; }
+        .cr-btn:active { background: #ffcc00; color: #000; }
+
+        .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 5px; }
+        .env-btn { border: 1px solid #444; color: #aaa; padding: 12px 2px; font-size: 0.85em; background: transparent; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; }
+        .env-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.1); }
+        
+        .env-btn.active[data-status="安全"] { background: #00ffaa; color: #000; border-color: #00ffaa; box-shadow: 0 0 10px rgba(0,255,170,0.6); }
+        .env-btn.active[data-status="警戒"] { background: #ffcc00; color: #000; border-color: #ffcc00; box-shadow: 0 0 10px rgba(255,204,0,0.6); }
+        .env-btn.active[data-status="車輛不通"] { background: #ff5500; color: #fff; border-color: #ff5500; box-shadow: 0 0 10px rgba(255,85,0,0.6); }
+        .env-btn.active[data-status="有傷患"] { background: #ff0055; color: #fff; border-color: #ff0055; box-shadow: 0 0 10px rgba(255,0,85,0.6); }
+        .env-btn.active[data-status="前往集合"] { background: #00aaff; color: #fff; border-color: #00aaff; box-shadow: 0 0 10px rgba(0,170,255,0.6); }
+        .env-btn.active[data-status="路坍"] { background: #995522; color: #fff; border-color: #995522; box-shadow: 0 0 10px rgba(153,85,34,0.6); }
+
+        .remark-input { flex: 1; background: #000; color: #ffaa00; border: 1px solid #444; padding: 10px; border-radius: 6px; outline: none; }
+        .ai-status { font-size: 0.75em; color: #00ffaa; text-align: right; margin-top: 4px; display: none; }
+        .preview-img { height: 60px; border-radius: 5px; border: 1px solid #00ffaa; object-fit: cover; }
+        
+        .nav-btn { display: block; margin-top: 10px; border: 2px solid #00ffaa; color: #00ffaa; text-decoration: none; padding: 12px; border-radius: 6px; font-weight: bold; background: rgba(0, 255, 170, 0.1); }
+
+        #syncToast {
+            position: fixed; top: -60px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 255, 170, 0.95); color: #000; font-weight: bold;
+            padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,255,170,0.5);
+            transition: top 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); z-index: 10000;
+            pointer-events: none; display: flex; align-items: center; gap: 8px; font-size: 0.9em;
         }
-
-        #map-bottom-controls {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000;
-        }
-        .map-floating-btn {
-            background: rgba(0, 20, 30, 0.9); border: 2px solid #00ffaa; color: #00ffaa;
-            padding: 10px 24px; border-radius: 30px; font-size: 1.05em; font-weight: bold; cursor: pointer;
-            box-shadow: 0 0 20px rgba(0, 255, 170, 0.3); transition: all 0.2s; white-space: nowrap; backdrop-filter: blur(5px);
-        }
-        .map-floating-btn:hover { background: #00ffaa; color: #000; box-shadow: 0 0 25px rgba(0, 255, 170, 0.7); transform: scale(1.05); }
-        .map-floating-btn.layer-hidden { border-color: #888; color: #888; box-shadow: none; }
-        .map-floating-btn.layer-hidden:hover { background: #555; color: #fff; }
-
-        #sidebar { flex: 1; background: linear-gradient(135deg, #020608 0%, #05131a 100%); padding: 15px; display: flex; flex-direction: column; min-width: 420px; z-index: 10; box-shadow: -5px 0 15px rgba(0,243,255,0.05); }
-        
-        .toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(4, 122, 128, 0.5); }
-        .toolbar-row { display: flex; gap: 6px; width: 100%; justify-content: space-between; }
-        .toolbar button { flex: 1; background: rgba(0, 243, 255, 0.05); border: 1px solid #00f3ff; color: #00f3ff; padding: 6px 4px; cursor: pointer; border-radius: 4px; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.85em; }
-        .toolbar button:hover { background: #00f3ff; color: #000; box-shadow: 0 0 10px rgba(0,243,255,0.5); }
-        .btn-ai { border-color: #bb00ff !important; color: #bb00ff !important; }
-        .btn-ai:hover { background: #bb00ff !important; color: #fff !important; }
-        .btn-export { border-color: #00ffaa !important; color: #00ffaa !important; }
-        .btn-export:hover { background: #00ffaa !important; color: #000 !important; }
-        .btn-danger { border-color: #ff0055 !important; color: #ff0055 !important; padding: 8px !important; font-size: 0.9em !important; }
-        .btn-danger:hover { background: #ff0055 !important; color: #fff !important; }
-
-        .user-card { background: rgba(0, 20, 30, 0.4); border-left: 4px solid #005577; padding: 12px; margin-bottom: 10px; border-radius: 4px; position: relative; transition: all 0.3s; }
-        .user-card:hover { border-left-color: #00f3ff; background: rgba(0, 30, 45, 0.6); }
-        .user-card.severe { border-left-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
-        
-        .header-row { display: flex; align-items: center; font-size: 1.1em; margin-bottom: 4px; flex-wrap: wrap; }
-        
-        input[type="checkbox"] { accent-color: #00f3ff; width: 16px; height: 16px; margin-right: 8px; cursor: pointer; }
-        
-        .user-name { font-weight: bold; color: #00f3ff; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
-        .user-name:hover { background: rgba(0, 243, 255, 0.1); outline: 1px solid #00f3ff; text-shadow: 0 0 8px #00f3ff; }
-        
-        .tags-container { display: flex; gap: 4px; margin-left: 5px; align-items: center; flex-wrap: wrap; flex: 1; }
-        .time-badge { margin-left: auto; font-size: 0.75em; color: #888; font-family: monospace; }
-        
-        .tag-outline { border: 1px solid currentColor; color: #00ffaa; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }
-        .tag-solid { background: currentColor; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.8); }
-        
-        .flash-name { color: #ff0055 !important; text-shadow: 0 0 10px #ff0055; animation: blinkFast 0.5s infinite alternate; }
-        @keyframes blinkFast { from { opacity: 1; } to { opacity: 0.3; } }
-
-        /* 💡 動作面板動畫已被徹底移除，確保完全穩定不彈跳 */
-        .action-grid { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-        .user-card.active-focus .action-grid { display: flex; }
-
-        .action-btn { flex: 1; background: transparent; border: 1px solid; color: inherit; font-size: 0.8em; padding: 5px 0; cursor: pointer; border-radius: 4px; text-align: center; transition: all 0.2s; white-space: nowrap; }
-        .btn-alert { border-color: #ff0055; color: #ff0055; } .btn-alert:hover { background: #ff0055; color: #fff; }
-        .btn-call { border-color: #ffcc00; color: #ffcc00; } .btn-call:hover { background: #ffcc00; color: #000; }
-        .btn-path { border-color: #00ffaa; color: #00ffaa; } .btn-path:hover { background: #00ffaa; color: #000; }
-        .btn-off { border-color: #555; color: #888; } .btn-off:hover { background: #555; color: #fff; }
-        .btn-photo { border-color: #00aaff; color: #00aaff; } .btn-photo:hover { background: #00aaff; color: #000; }
-        
-        .remark-box { margin-top: 6px; font-size: 0.85em; color: #ccc; background: rgba(255, 255, 255, 0.05); padding: 6px 10px; border-radius: 4px; border-left: 2px solid #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: all 0.2s ease; }
-        .remark-box:hover { border-left-color: #ffaa00; color: #ffaa00; background: rgba(255, 255, 255, 0.1); }
-        .remark-box.expanded { white-space: normal; word-break: break-all; }
-        
-        .ai-box { margin-top: 6px; font-size: 0.85em; background: rgba(0, 0, 0, 0.5); padding: 8px; border-radius: 4px; border: 1px solid #005577; cursor: pointer; user-select: none; transition: all 0.2s ease; }
-        .ai-box:hover { border-color: #00f3ff; background: rgba(0, 243, 255, 0.05); }
-        .ai-box.ai-severe { border-color: #ff0055; background: rgba(255, 0, 85, 0.1); }
-        .ai-box.ai-severe:hover { background: rgba(255, 0, 85, 0.15); border-color: #ff0055; box-shadow: 0 0 10px rgba(255,0,85,0.2); }
-        .ai-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; margin-right: 6px; font-size: 0.85em; }
-        .ai-urgency-high { background: #ff0055; color: #fff; font-weight: bold; box-shadow: 0 0 8px #ff0055; animation: blinkFast 1s infinite alternate; }
-        .ai-details { display: none; margin-top: 8px; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 8px; line-height: 1.5; }
-        .ai-box.expanded .ai-details { display: block; }
-        .toggle-icon { display: inline-block; font-size: 0.8em; color: #888; transition: transform 0.2s; }
-        .ai-box.expanded .toggle-icon { transform: rotate(180deg); color: #00f3ff; }
-        
-        #log-panel { height: 120px; border-top: 1px solid rgba(4, 122, 128, 0.5); font-size: 0.75em; overflow-y: auto; padding-top: 10px; margin-top: auto; color: #888; font-family: monospace; }
-
-        #photoModal, #aiReportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,10,15,0.95); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .close-btn { position: absolute; top: 20px; right: 20px; background: transparent; color: #ff0055; border: 1px solid #ff0055; padding: 8px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; z-index: 100000; transition: all 0.2s;}
-        .close-btn:hover { background: #ff0055; color: #fff; box-shadow: 0 0 15px #ff0055;}
-        
-        .carousel-container { display: flex; align-items: center; justify-content: center; position: relative; max-width: 95vw; max-height: 85vh; }
-        .carousel-btn { background: rgba(0, 243, 255, 0.1); border: 1px solid #00f3ff; color: #00f3ff; font-size: 2em; padding: 10px 15px; cursor: pointer; border-radius: 4px; margin: 0 20px; transition: all 0.3s; }
-        .carousel-btn:hover { background: #00f3ff; color: #000; }
-        .image-wrapper { position: relative; display: inline-block; }
-        #modalImg { max-height: 80vh; max-width: 75vw; object-fit: contain; border: 1px solid #00f3ff; border-radius: 4px; box-shadow: 0 0 30px rgba(0, 243, 255, 0.2); }
-        #modalCaption { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.8); color: #00ffaa; padding: 12px 0; text-align: center; font-size: 1.1em; font-family: monospace; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
-
-        .report-box { background: #020608; border: 1px solid #bb00ff; border-radius: 8px; width: 85%; max-width: 900px; height: 85%; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(187, 0, 255, 0.2); position: relative; padding: 20px; overflow: hidden;}
+        #syncToast.show { top: 20px; }
+        #syncToast.warning { background: rgba(255, 0, 85, 0.95); color: #fff; box-shadow: 0 4px 15px rgba(255,0,85,0.5); }
     </style>
 </head>
 <body>
 
-<div id="map-container">
-    <div id="map"></div>
-    <div id="map-coord-overlay"></div>
-    <div id="map-bottom-controls">
-        <button id="global-layer-btn" class="map-floating-btn" onclick="toggleGlobalLayer()">👁️ 隱藏歷史軌跡 (僅顯示光點)</button>
-    </div>
-</div>
+<div id="syncToast">✅ 狀態已同步</div>
 
-<div id="sidebar">
-    <div class="toolbar">
-        <div class="toolbar-row">
-            <button id="toggleAllBtn" onclick="toggleSelectAll()">全選/不選</button>
-            <button onclick="toggleMapType()">衛星地圖</button>
-            <button onclick="clearPath()">清空路徑</button>
-            <button class="btn-ai" onclick="generateAIReport()">AI總結</button>
-            <button class="btn-export" onclick="exportGeoJSON()">JSON輸出</button>
-        </div>
-        <button class="btn-danger" onclick="allRetreat()">🚨 全體撤退</button>
+<div class="container">
+    <div id="loginSection">
+        <h2 style="margin-top:0; color:#00f3ff; margin-bottom: 20px;">災防通報終端</h2>
+        <input type="text" id="userId" value="User_Alpha" placeholder="輸入 ID" class="modern-input">
+        <button id="startBtn" class="primary-btn">🚀 啟動任務與追蹤</button>
     </div>
     
-    <div id="user-list" style="flex:1; overflow-y:auto; padding-right: 5px;"></div>
-    
-    <details style="margin-top: 10px;"><summary style="cursor:pointer; color:#666; padding:8px 0; border-top:1px solid #222; font-size: 0.9em; transition: color 0.2s;">歷史離線紀錄</summary><div id="offline-list"></div></details>
-    <div id="log-panel"></div>
-    
-    <audio id="pcAlertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-</div>
-
-<div id="photoModal">
-    <button class="close-btn" onclick="closePhotoModal()">✖ 關閉</button>
-    <div class="carousel-container">
-        <button class="carousel-btn" onclick="navPhoto(-1)">❮</button>
-        <div class="image-wrapper">
-            <img id="modalImg" src="">
-            <div id="modalCaption">影像擷取中...</div>
+    <div id="trackingSection" style="display:none;">
+        <div class="task-header">
+            <div><span class="pulse-dot"></span><span style="color:#aaa">節點: </span><strong id="displayId" style="color:#00ffaa;"></strong></div>
         </div>
-        <button class="carousel-btn" onclick="navPhoto(1)">❯</button>
-    </div>
-</div>
-
-<div id="aiReportModal">
-    <div class="report-box">
-        <h2 style="color:#bb00ff; margin-top: 0; border-bottom: 1px solid #bb00ff; padding-bottom: 10px;">🤖 災防決策幕僚分析報告</h2>
-        <div id="aiReportContent" style="white-space:pre-wrap; line-height:1.6; color:#ddd; overflow-y: auto; flex: 1;">資料同步與解析中...</div>
-        <div style="margin-top: 15px; text-align: right;">
-            <button class="btn-export" onclick="downloadAIReport()" style="padding: 8px 15px; font-size: 1em; background:transparent; cursor:pointer;">💾 下載報告</button>
+        
+        <div class="data-panel">
+            <div>座標: <span id="coordsDisplay" class="data-val">定位中...</span></div>
+            <div>電量: <span id="batteryDisplay" class="data-val">--</span></div>
         </div>
-        <button onclick="document.getElementById('aiReportModal').style.display='none'" style="position:absolute; top:15px; right:20px; color:#ff0055; background:none; border:none; font-size:1.8em; cursor:pointer;">✖</button>
+        
+        <div class="action-row">
+            <button id="stopBtn" class="stop-btn">🛑 停止</button>
+            <button id="warnBtn" class="warning-btn">🚨 警報</button>
+            <button id="crBtn" class="cr-btn">🔊 CR</button>
+        </div>
+        
+        <div style="border-top: 1px dashed #333; padding-top: 12px;">
+            <div class="env-grid">
+                <button class="env-btn" data-status="安全">安全</button>
+                <button class="env-btn" data-status="警戒">警戒</button>
+                <button class="env-btn" data-status="車輛不通">車不通</button>
+                <button class="env-btn" data-status="有傷患">有傷患</button>
+                <button class="env-btn" data-status="前往集合">去集合</button>
+                <button class="env-btn" data-status="路坍">路坍</button>
+            </div>
+            
+            <div style="margin-top:8px;">
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="remarkInput" class="remark-input" placeholder="現場備註 (AI 解析)">
+                    <button id="remarkBtn" style="color:#ffaa00; border: 1px solid #ffaa00; background:transparent; padding:0 10px; border-radius:6px; cursor: pointer;">送出</button>
+                </div>
+                <div id="aiStatus" class="ai-status">🤖 AI 解析中...</div>
+            </div>
+        </div>
+
+        <div style="border-top: 1px dashed #333; padding-top: 12px; margin-top: 12px;">
+            <input type="file" id="photoInput" accept="image/*" multiple style="display:none;">
+            <button id="photoBtn" style="border: 1px solid #00ffaa; color:#00ffaa; background:transparent; width:100%; padding:12px; border-radius:6px; cursor:pointer;">📸 拍攝照片 (FIFO 5張)</button>
+            <div id="photoPreview" style="display:flex; gap:5px; margin-top:10px; overflow-x:auto;"></div>
+        </div>
+
+        <a id="navBtn" class="nav-btn" href="#" target="_blank" style="display:none;">🗺️ 開啟 Google Maps 導航</a>
     </div>
+
+    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+    <audio id="silentAudio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    import { firebaseConfig } from './firebase-config.js';
+    import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { firebaseConfig } from './firebase-config.js'; 
 
-    // 💡 恢復 GitHub Actions 專用安全預留字串
     const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
     const OPENROUTER_MODELS = [
         "nvidia/nemotron-3-super-120b-a12b:free", 
@@ -174,423 +128,92 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const map = L.map('map').setView([23.7, 121], 7);
-    
-    const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
-    const contourLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, opacity: 0.4 });
-    let isSatelliteMode = false;
-
-    const pcSound = document.getElementById('pcAlertSound');
-    let plannedPath = [], pathMarkers = [];
-    let pathLine = L.polyline([], {color:'#00ffaa', weight:3, dashArray:'5,10'}).addTo(map);
-    
-    const trajectoryGroup = L.layerGroup().addTo(map);
-    let isGlobalTrajectoryVisible = true;
-
-    const activeTrackers = new Set(); 
-    let knownUsers = new Set();       
-    const markers = {}, polylines = {}, hListeners = {};
-    window.globalPhotos = {}; 
-    
-    // 💡 全局狀態快取字典：紀錄每個人員卡片目前的內容，用來防止不必要的 DOM 重繪 (解決按鈕彈跳)
-    const renderedUserStates = {}; 
-    
-    let currentUsersData = {}; 
-    let hudTimeout = null;
-
-    window.aiExpandedAll = false;
-    window.focusedUid = null;
-
-    map.on('click', e => {
-        plannedPath.push([e.latlng.lat, e.latlng.lng]);
-        pathLine.setLatLngs(plannedPath);
-        pathMarkers.push(L.circleMarker(e.latlng, {radius:4, color:'#00ffaa'}).addTo(map));
-        log(`登錄導航航點：${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
-    });
-
-    map.on('zoomend', () => {
-        if (map.getZoom() < 16) {
-            window.focusedUid = null;
-            document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-focus'));
-        }
-    });
-
-    window.focusMap = (lat, lng, uid, battery) => {
-        window.focusedUid = uid;
-        document.querySelectorAll('.user-card').forEach(card => card.classList.remove('active-focus'));
-        const targetCard = document.getElementById(`user-card-${uid}`);
-        if(targetCard) targetCard.classList.add('active-focus');
-
-        map.flyTo([lat, lng], 17, { duration: 1.2, easeLinearity: 0.25 });
-        const overlay = document.getElementById('map-coord-overlay');
-        
-        let batStr = (battery !== null && battery !== undefined) ? ` | ⚡ ${battery}%` : '';
-        
-        overlay.innerHTML = `
-            <div style="text-align: center;">
-                📍 目標 [${uid}] | 座標：${lat.toFixed(5)}, ${lng.toFixed(5)}${batStr}
-            </div>
-        `;
-        overlay.style.display = 'block';
-        log(`雷達鎖定：${uid}`);
-        
-        if(hudTimeout) clearTimeout(hudTimeout);
-        hudTimeout = setTimeout(() => overlay.style.display = 'none', 4000);
+    const ui = {
+        loginSec: document.getElementById('loginSection'), trackingSec: document.getElementById('trackingSection'),
+        userId: document.getElementById('userId'), displayId: document.getElementById('displayId'),
+        coordsDisp: document.getElementById('coordsDisplay'), batteryDisp: document.getElementById('batteryDisplay'),
+        start: document.getElementById('startBtn'), stop: document.getElementById('stopBtn'),
+        nav: document.getElementById('navBtn'), snd: document.getElementById('alertSound'), silent: document.getElementById('silentAudio'),
+        remarkInput: document.getElementById('remarkInput'), remarkBtn: document.getElementById('remarkBtn'), aiStatus: document.getElementById('aiStatus'),
+        photoInput: document.getElementById('photoInput'), photoBtn: document.getElementById('photoBtn'), photoPreview: document.getElementById('photoPreview')
     };
 
-    onValue(ref(db, 'tracking/users'), snap => {
-        currentUsersData = snap.val() || {};
-        
-        // 1. 處理已離線或被刪除的使用者
-        Object.keys(renderedUserStates).forEach(uid => {
-            if (!currentUsersData[uid] || currentUsersData[uid].status !== 'active') {
-                const card = document.getElementById(`user-card-${uid}`);
-                if (card) card.remove();
-                delete renderedUserStates[uid];
-                
-                if (activeTrackers.has(uid)) {
-                    activeTrackers.delete(uid);
-                    removeMarker(uid);
-                    disableTrajectory(uid);
-                }
-                // 放入離線清單
-                if(currentUsersData[uid]) renderOffline(uid, currentUsersData[uid]);
-            }
-        });
+    let watchId = null, lastHistoryTime = 0, batteryInfo = null;
+    let currentEnvStatus = new Set();
+    let currentPhotos = [];
 
-        // 每次清空重繪離線清單，避免重複疊加
-        document.getElementById('offline-list').innerHTML = '';
-        Object.keys(currentUsersData).forEach(uid => {
-            if (currentUsersData[uid].status !== 'active') {
-                renderOffline(uid, currentUsersData[uid]);
-            }
-        });
+    function showToast(msg, isWarning = false) {
+        const toast = document.getElementById('syncToast');
+        toast.innerHTML = msg;
+        if (isWarning) toast.classList.add('warning'); else toast.classList.remove('warning');
+        toast.classList.add('show');
+        if (navigator.vibrate) navigator.vibrate(50);
+        setTimeout(() => toast.classList.remove('show'), 2500);
+    }
 
-        // 2. 處理線上人員 (精準 DOM 比對更新，徹底消滅跳動)
-        Object.keys(currentUsersData).forEach(uid => {
-            const u = currentUsersData[uid];
-            if (u.status === 'active') {
-                if (!knownUsers.has(uid)) { knownUsers.add(uid); activeTrackers.add(uid); }
+    if ('getBattery' in navigator) {
+        navigator.getBattery().then(bat => {
+            batteryInfo = { level: Math.round(bat.level * 100), charging: bat.charging };
+        }).catch(() => {});
+    }
+
+    ui.photoBtn.onclick = () => ui.photoInput.click();
+    ui.photoInput.onchange = async (e) => {
+        for (let file of e.target.files) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                currentPhotos.push({ data: ev.target.result, time: Date.now() });
+                if (currentPhotos.length > 5) currentPhotos.shift();
                 
-                // 萃取「會影響卡片長相」的核心狀態
-                const currentStateString = JSON.stringify({
-                    al: u.isAlarm, cr: u.needCR, env: u.envStatus, rem: u.envRemark, ai: u.ai_analysis, img: u.images?.length
+                ui.photoPreview.innerHTML = '';
+                currentPhotos.forEach(p => {
+                    const img = document.createElement('img');
+                    img.src = p.data; img.className = 'preview-img'; ui.photoPreview.appendChild(img);
                 });
-
-                if (renderedUserStates[uid] !== currentStateString) {
-                    // 內容有實質改變，才砍掉整張卡片重畫
-                    const oldCard = document.getElementById(`user-card-${uid}`);
-                    if (oldCard) oldCard.remove();
-                    
-                    renderCard(uid, u);
-                    renderedUserStates[uid] = currentStateString;
-                } else {
-                    // 內容沒變 (只有 GPS 更新)，單純修改時間字串，絕不動 DOM 結構
-                    const timeBadge = document.getElementById(`time-${uid}`);
-                    if (timeBadge) timeBadge.innerText = new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12: false});
-                }
+                ui.photoBtn.innerText = `📸 已保留 ${currentPhotos.length}/5 張`;
                 
-                // 地圖光點與軌跡更新 (獨立於側邊欄)
-                if (activeTrackers.has(uid)) { 
-                    updateMarker(uid, u); 
-                    enableTrajectory(uid); 
-                } else { 
-                    removeMarker(uid); 
-                    disableTrajectory(uid); 
+                const uid = ui.userId.value.trim();
+                if (uid && watchId) {
+                    update(ref(db, `tracking/users/${uid}`), { images: currentPhotos })
+                        .then(() => showToast('📸 現場照片已同步'));
                 }
-            }
-        });
-        syncSelectAllBtn();
-    });
-
-    let initialGlobalAlert = true;
-    onValue(ref(db, 'tracking/alerts/global'), (snap) => {
-        if (initialGlobalAlert) { initialGlobalAlert = false; return; }
-        const data = snap.val();
-        if (data && data.type === 'alarm' && data.timestamp > Date.now() - 5000) {
-            pcSound.play().catch(e=>{}); 
-            log(`⚠️ 截獲來自 ${data.triggerBy} 的緊急信號！`);
+            };
+            reader.readAsDataURL(file);
         }
-    });
+    };
 
-    let initialCrAlert = true;
-    onValue(ref(db, 'tracking/alerts/fun_cr'), (snap) => {
-        if (initialCrAlert) { initialCrAlert = false; return; }
-        const data = snap.val();
-        if (data && data.timestamp > Date.now() - 5000 && data.triggerBy !== 'HQ') {
-            pcSound.play().catch(e=>{});
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance('請支援CR');
-                utter.lang = 'zh-TW';
-                window.speechSynthesis.speak(utter);
-            }
-            log(`🔊 節點 ${data.triggerBy} 請求 CR 支援`);
-        }
-    });
-
-    function renderCard(uid, u) {
-        const div = document.createElement('div'); 
-        div.id = `user-card-${uid}`;
-        const isTracked = activeTrackers.has(uid);
-        const isSevere = u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高');
-        div.className = `user-card ${isSevere ? 'severe' : ''}`;
-        
-        if (window.focusedUid === uid && map.getZoom() >= 16) {
-            div.classList.add('active-focus');
-        }
-        
-        const nameClass = u.isAlarm ? 'flash-name' : '';
-        const crTag = u.needCR ? `<span class="tag-outline" style="color:#ffcc00; border-color:#ffcc00;">請求CR</span>` : '';
-        
-        let envTagHtml = '';
-        if (u.envStatus) {
-            u.envStatus.split(',').forEach(status => {
-                if (!status) return;
-                let cssClass = 'tag-outline'; let styleStr = '';
-                switch(status) {
-                    case '安全': styleStr = 'color:#00ffaa; border-color:#00ffaa;'; break;
-                    case '警戒': styleStr = 'color:#ffaa00; border-color:#ffaa00;'; break;
-                    case '前往集合': styleStr = 'color:#00aaff; border-color:#00aaff;'; break;
-                    case '車輛不通': cssClass = 'tag-solid'; styleStr = 'background:#ff5500; color:#fff;'; break;
-                    case '路坍': cssClass = 'tag-solid'; styleStr = 'background:#995522; color:#fff;'; break;
-                    case '有傷患': cssClass = 'tag-solid'; styleStr = 'background:#ff0055; color:#fff; animation: blinkFast 1s infinite alternate;'; break;
-                }
-                envTagHtml += `<span class="${cssClass}" style="${styleStr}">${status}</span>`;
-            });
-        }
-        
-        const timeStr = new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12: false});
-        
-        let aiHtml = '';
-        if (u.ai_analysis) {
-            const ai = u.ai_analysis;
-            const isHigh = ai.urgency === '高';
-            let needsHtml = '';
-            if (ai.needs && Array.isArray(ai.needs) && ai.needs.length > 0) { 
-                needsHtml = `<div style="margin-top:6px;">資源調度: <span style="color:#00ffaa">${ai.needs.join('、')}</span></div>`; 
-            }
-
-            aiHtml = `
-                <div class="ai-box ${isHigh ? 'ai-severe' : ''} ${window.aiExpandedAll ? 'expanded' : ''}" title="點擊展開/收合所有解析內容">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span class="ai-badge" style="border:1px solid #444; color:#888;">🧠 AI判讀</span>
-                            <span class="ai-badge ${isHigh ? 'ai-urgency-high' : ''}" style="color:#00aaff;">風險別: ${ai.urgency || '未知'}</span>
-                        </div>
-                        <span class="toggle-icon">▼</span>
-                    </div>
-                    <div class="ai-details">
-                        <div>事件: <span style="color:#fff">${ai.event || '無'}</span></div>
-                        <div style="margin-top:2px;">生還狀態: <span style="color:${ai.casualties!=='無'?'#ff0055':'#888'}">${ai.casualties || '無'}</span></div>
-                        ${needsHtml}
-                    </div>
-                </div>
-            `;
-        }
-
-        let photoBtnHtml = '';
-        if (u.images && u.images.length > 0) {
-            window.globalPhotos[uid] = u.images; 
-            photoBtnHtml = `<button class="action-btn btn-photo">檢視照片(${u.images.length})</button>`;
-        }
-
-        div.innerHTML = `
-            <div class="header-row">
-                <input type="checkbox" class="track-cb" data-uid="${uid}" ${isTracked ? 'checked' : ''} title="勾選以顯示此人員位置與軌跡">
-                <span class="user-name ${nameClass}" title="鎖定地圖位置">${uid}</span> 
-                <div class="tags-container">
-                    ${crTag} ${envTagHtml}
-                    <span class="time-badge" id="time-${uid}">${timeStr}</span>
-                </div>
-            </div>
-            ${u.envRemark ? `<div class="remark-box">💬 備註：${u.envRemark}</div>` : ''}
-            ${aiHtml}
-            <div class="action-grid">
-                <button class="action-btn btn-alert">發布警報</button>
-                <button class="action-btn btn-call">CR呼叫</button>
-                <button class="action-btn btn-path">派發路徑</button>
-                ${photoBtnHtml}
-                <button class="action-btn btn-off">離線/刪除</button>
-            </div>
-        `;
-        document.getElementById('user-list').appendChild(div);
-
-        div.querySelector('.user-name').addEventListener('click', () => focusMap(u.lat, u.lng, uid, u.battery));
-        const remarkBox = div.querySelector('.remark-box');
-        if (remarkBox) remarkBox.addEventListener('click', () => remarkBox.classList.toggle('expanded'));
-        const aiBox = div.querySelector('.ai-box');
-        if (aiBox) aiBox.addEventListener('click', () => window.toggleAllAITags());
-
-        div.querySelector('.btn-alert').addEventListener('click', () => sendCmd(uid, 'targeted_alert'));
-        div.querySelector('.btn-call').addEventListener('click', () => sendCmd(uid, 'targeted_cr'));
-        div.querySelector('.btn-path').addEventListener('click', () => sendPath(uid));
-        div.querySelector('.btn-off').addEventListener('click', () => forceOff(uid));
-        const btnPhoto = div.querySelector('.btn-photo');
-        if (btnPhoto) btnPhoto.addEventListener('click', () => showPhotoModal(uid));
-
-        div.querySelector('.track-cb').addEventListener('change', (e) => {
-            if (e.target.checked) { 
-                activeTrackers.add(uid); 
-                updateMarker(uid, u); 
-                enableTrajectory(uid); 
+    document.querySelectorAll('.env-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (navigator.vibrate) navigator.vibrate(30);
+            const status = btn.getAttribute('data-status');
+            if (currentEnvStatus.has(status)) { 
+                currentEnvStatus.delete(status); 
+                btn.classList.remove('active'); 
             } else { 
-                activeTrackers.delete(uid); 
-                removeMarker(uid); 
-                disableTrajectory(uid); 
+                currentEnvStatus.add(status); 
+                btn.classList.add('active'); 
             }
-            syncSelectAllBtn();
-        });
-    }
+            const uid = ui.userId.value.trim();
+            if (uid && watchId) {
+                update(ref(db, `tracking/users/${uid}`), { envStatus: Array.from(currentEnvStatus).join(',') })
+                    .then(() => {
+                        const statusStr = Array.from(currentEnvStatus).join(', ');
+                        if(statusStr) showToast(`✅ [${statusStr}] 已同步指揮中心`);
+                        else showToast('✅ 狀態已清除');
+                    });
+            }
+        };
+    });
 
-    function renderOffline(uid, u) { 
-        const div = document.createElement('div'); div.style.padding='6px 12px'; div.style.borderBottom='1px solid rgba(255,255,255,0.05)'; div.style.fontSize='0.8em'; div.style.fontFamily='monospace';
-        div.innerHTML = `<span style="color:#555">[-] ${uid} (已離線) - ${new Date(u.timestamp).toLocaleTimeString('zh-TW', {hour12:false})}</span>`;
-        document.getElementById('offline-list').appendChild(div);
-    }
-
-    function updateMarker(uid, u) {
-        let color = '#00f3ff';
-        if (u.isAlarm || (u.ai_analysis && u.ai_analysis.urgency === '高')) color = '#ff0055'; 
+    ui.remarkBtn.onclick = async () => {
+        const uid = ui.userId.value.trim();
+        let text = ui.remarkInput.value.trim();
+        if (!uid || !text) return;
+        ui.remarkBtn.disabled = true; ui.aiStatus.style.display = 'block';
+        ui.aiStatus.innerText = "🤖 AI 解析中...";
+        if (navigator.vibrate) navigator.vibrate(30);
         
-        if (markers[uid]) { markers[uid].setLatLng([u.lat, u.lng]); markers[uid].setStyle({color: color}); } 
-        else { markers[uid] = L.circleMarker([u.lat, u.lng], {radius:7, color: color, weight: 1.5, fillOpacity: 0.1}).addTo(map); }
-    }
-    function removeMarker(uid) { if (markers[uid]) { map.removeLayer(markers[uid]); delete markers[uid]; } }
-
-    function enableTrajectory(uid) {
-        if (!hListeners[uid]) {
-            hListeners[uid] = onValue(ref(db, `tracking/history/${uid}`), s => {
-                const pts = Object.values(s.val() || {}).map(p => [p.lat, p.lng]);
-                if (polylines[uid]) polylines[uid].setLatLngs(pts);
-                else polylines[uid] = L.polyline(pts, {color:'#005577', weight:3, opacity: 0.7, dashArray:'5,8'}).addTo(trajectoryGroup);
-            });
-        }
-    }
-    function disableTrajectory(uid) {
-        if (polylines[uid]) { trajectoryGroup.removeLayer(polylines[uid]); delete polylines[uid]; }
-        if (hListeners[uid]) { hListeners[uid](); delete hListeners[uid]; }
-    }
-
-    window.toggleGlobalLayer = () => {
-        isGlobalTrajectoryVisible = !isGlobalTrajectoryVisible;
-        const btn = document.getElementById('global-layer-btn');
-        if (isGlobalTrajectoryVisible) {
-            map.addLayer(trajectoryGroup);
-            btn.innerText = "👁️ 隱藏歷史軌跡 (僅顯示光點)";
-            btn.classList.remove('layer-hidden');
-        } else {
-            map.removeLayer(trajectoryGroup);
-            btn.innerText = "👁️ 顯示歷史軌跡";
-            btn.classList.add('layer-hidden');
-        }
-    };
-
-    window.syncSelectAllBtn = () => {
-        const cbs = Array.from(document.querySelectorAll('.track-cb'));
-        const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
-        const sideBtn = document.getElementById('toggleAllBtn');
-        if(sideBtn) sideBtn.innerText = allChecked ? "不選" : "全選";
-    };
-
-    window.toggleSelectAll = () => {
-        const cbs = Array.from(document.querySelectorAll('.track-cb'));
-        const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
-        const targetState = !allChecked;
-        
-        cbs.forEach(cb => { 
-            if (cb.checked !== targetState) { 
-                cb.checked = targetState; 
-                const uid = cb.getAttribute('data-uid');
-                if (targetState) {
-                    activeTrackers.add(uid);
-                    updateMarker(uid, currentUsersData[uid]);
-                    enableTrajectory(uid);
-                } else {
-                    activeTrackers.delete(uid);
-                    removeMarker(uid);
-                    disableTrajectory(uid);
-                }
-            }
-        });
-        window.syncSelectAllBtn();
-    };
-
-    window.toggleAllAITags = () => {
-        window.aiExpandedAll = !window.aiExpandedAll;
-        document.querySelectorAll('.ai-box').forEach(box => {
-            if (window.aiExpandedAll) box.classList.add('expanded');
-            else box.classList.remove('expanded');
-        });
-    };
-
-    window.toggleMapType = () => {
-        if (!isSatelliteMode) { map.removeLayer(defaultLayer); satelliteLayer.addTo(map); contourLayer.addTo(map); document.getElementById('map').classList.add('real-world-mode'); log("切換至：衛星+地形"); } 
-        else { map.removeLayer(satelliteLayer); map.removeLayer(contourLayer); defaultLayer.addTo(map); document.getElementById('map').classList.remove('real-world-mode'); log("切換至：科技地圖"); }
-        isSatelliteMode = !isSatelliteMode;
-    };
-
-    window.clearPath = () => { plannedPath = []; pathLine.setLatLngs([]); pathMarkers.forEach(m => map.removeLayer(m)); pathMarkers = []; log("路徑標記已清空"); };
-    
-    window.allRetreat = () => { 
-        if(confirm('確定要對所有人員發布全域撤退？')) { 
-            set(ref(db, `tracking/commands/global/retreat`), { timestamp: Date.now() }); 
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utter = new SpeechSynthesisUtterance('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退');
-                utter.lang = 'zh-TW';
-                window.speechSynthesis.speak(utter);
-            }
-            log("🚨 發布全體撤退指令"); 
-        }
-    };
-
-    window.sendCmd = (uid, type) => { set(ref(db, `tracking/alerts/${type}/${uid}`), {timestamp: Date.now()}); log(`傳送指令至：${uid}`); };
-    window.sendPath = uid => { if (plannedPath.length < 1) return alert("請先於地圖點擊以設置導航航點"); set(ref(db, `tracking/commands/${uid}/path_mission`), { points: plannedPath, timestamp: Date.now() }); log(`路徑已發送至：${uid}`); };
-    
-    window.forceOff = uid => {
-        if (confirm(`【操作確認】\n[確定] 徹底刪除 ${uid} 的所有資料\n[取消] 僅斷開連線轉入離線紀錄`)) { remove(ref(db, `tracking/users/${uid}`)); remove(ref(db, `tracking/history/${uid}`)); }
-        else { set(ref(db, `tracking/commands/${uid}/force_offline`), { timestamp: Date.now() }); update(ref(db, `tracking/users/${uid}`), {status:'offline'}); }
-    };
-
-    window.exportGeoJSON = () => {
-        const features = [];
-        Object.keys(currentUsersData).forEach(uid => {
-            const u = currentUsersData[uid]; if (u.status !== 'active') return;
-            features.push({ type: "Feature", geometry: { type: "Point", coordinates: [u.lng, u.lat] }, properties: { id: uid, timestamp: u.timestamp, battery: u.battery, envStatus: u.envStatus, remark: u.envRemark } });
-        });
-        const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: features }, null, 2)], {type: "application/json;charset=utf-8"});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `GeoData_${new Date().getTime()}.geojson`; a.click();
-    };
-
-    let currentModalPhotos = [], currentPhotoIndex = 0;
-    window.showPhotoModal = (uid) => {
-        currentModalPhotos = window.globalPhotos[uid];
-        if (!currentModalPhotos || currentModalPhotos.length === 0) return;
-        currentPhotoIndex = 0; 
-        document.getElementById('modalImg').src = currentModalPhotos[currentPhotoIndex].data;
-        document.getElementById('modalCaption').innerText = `紀錄 1 / ${currentModalPhotos.length} | 時間: ${new Date(currentModalPhotos[currentPhotoIndex].time).toLocaleTimeString('zh-TW', {hour12:false})}`;
-        document.getElementById('photoModal').style.display = 'flex';
-    };
-    window.navPhoto = (direction) => {
-        currentPhotoIndex = (currentPhotoIndex + direction + currentModalPhotos.length) % currentModalPhotos.length;
-        document.getElementById('modalImg').src = currentModalPhotos[currentPhotoIndex].data;
-        document.getElementById('modalCaption').innerText = `紀錄 ${currentPhotoIndex + 1} / ${currentModalPhotos.length} | 時間: ${new Date(currentModalPhotos[currentPhotoIndex].time).toLocaleTimeString('zh-TW', {hour12:false})}`;
-    };
-    window.closePhotoModal = () => { document.getElementById('photoModal').style.display = 'none'; document.getElementById('modalImg').src = ''; };
-
-    let currentReportText = "";
-    window.generateAIReport = async () => {
-        const activeUsers = Object.keys(currentUsersData).filter(uid => currentUsersData[uid].status === 'active').map(uid => ({
-            ID: uid, 座標: `${currentUsersData[uid].lat}, ${currentUsersData[uid].lng}`, 狀態: currentUsersData[uid].envStatus, 備註: currentUsersData[uid].envRemark
-        }));
-        if (activeUsers.length === 0) return alert("無活動節點。");
-
-        const content = document.getElementById('aiReportContent');
-        document.getElementById('aiReportModal').style.display = 'flex';
-        content.innerText = "🤖 幕僚演算中 (嘗試首選模型)...";
-
+        let aiAnalysis = null;
         let success = false;
         let lastErrorMsg = "";
 
@@ -602,50 +225,151 @@
                         "Authorization": `Bearer ${OPENROUTER_API_KEY}`, 
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://github.com",
-                        "X-Title": "Rescue Dashboard"
+                        "X-Title": "Rescue Terminal"
                     },
                     body: JSON.stringify({
                         model: model,
-                        messages: [{ role: "user", content: `你是災防指揮官。分析以下數據並給出「災情大綱」與「處理優先權」：${JSON.stringify(activeUsers)}` }]
+                        messages: [{ role: "user", content: `將通報內容轉為JSON (不可包含Markdown)：{"event":"","casualties":"","needs":[],"urgency":"高/中/低"} 內容：${text}` }]
                     })
                 });
                 const data = await res.json();
-                
                 if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
-
                 if (data.choices && data.choices.length > 0) {
-                    currentReportText = data.choices[0].message.content;
+                    let cleanJson = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
+                    aiAnalysis = JSON.parse(cleanJson);
                     const modelNameShort = model.split('/')[1].split('-')[0].toUpperCase();
-                    content.innerHTML = `<div style="font-size: 0.8em; color: #00ffaa; margin-bottom: 10px;">✅ 生成模型: ${modelNameShort}</div>` + 
-                        currentReportText
-                        .replace(/## (.*?)\n/g, '<h3 style="color:#00f3ff; margin-top:20px; border-bottom:1px solid #333;">$1</h3>')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffaa00;">$1</strong>');
+                    ui.aiStatus.innerText = `🤖 解析完成 (${modelNameShort})`;
                     success = true;
                     break;
-                } else {
-                    throw new Error("API 回傳格式異常");
-                }
+                } else { throw new Error("API異常"); }
             } catch (e) {
-                console.warn(`[${model}] 失敗:`, e);
                 lastErrorMsg = e.message;
-                content.innerText = `🤖 幕僚演算中 (切換備用模型)...`;
             }
         }
 
         if (!success) {
-            console.error("所有模型皆失敗:", lastErrorMsg);
-            currentReportText = JSON.stringify(activeUsers, null, 2) + `\n\n(API 錯誤: ${lastErrorMsg})`;
-            content.innerHTML = `<pre style="color:#aaa;">${currentReportText}</pre>`;
+            text += ` (API錯誤: ${lastErrorMsg})`; 
+            ui.aiStatus.innerText = "⚠️ API失敗";
         }
-    };
-    
-    window.downloadAIReport = () => {
-        if (!currentReportText) return;
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([currentReportText], {type: "text/plain;charset=utf-8"}));
-        a.download = `Report_${new Date().getTime()}.txt`; a.click();
+        
+        update(ref(db, `tracking/users/${uid}`), { envRemark: text, ai_analysis: aiAnalysis })
+            .then(() => {
+                showToast('💬 備註與 AI 分析已同步');
+                ui.remarkBtn.disabled = false;
+                setTimeout(() => ui.aiStatus.style.display = 'none', 3000);
+            });
     };
 
-    function log(m) { const d = document.createElement('div'); d.innerHTML = `[${new Date().toLocaleTimeString('zh-TW', {hour12:false})}] ${m}`; document.getElementById('log-panel').prepend(d); }
+    document.getElementById('warnBtn').onclick = () => {
+        const uid = ui.userId.value.trim();
+        if (!uid || !watchId) return;
+        update(ref(db, `tracking/users/${uid}`), { isAlarm: true })
+            .then(() => showToast('🚨 緊急警報已送出！', true));
+        set(ref(db, `tracking/alerts/global`), { triggerBy: uid, type: 'alarm', timestamp: Date.now() });
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { isAlarm: false }), 10000);
+        playAlert('指揮中心發出緊急警報！', '#ff0055'); 
+    };
+
+    document.getElementById('crBtn').onclick = () => {
+        const uid = ui.userId.value.trim();
+        if (!uid || !watchId) return;
+        update(ref(db, `tracking/users/${uid}`), { needCR: true })
+            .then(() => showToast('🔊 CR支援請求已送出', true));
+        set(ref(db, `tracking/alerts/fun_cr`), { triggerBy: uid, timestamp: Date.now() });
+        setTimeout(() => update(ref(db, `tracking/users/${uid}`), { needCR: false }), 15000); 
+        playAlert('請支援CR', '#ffcc00'); 
+    };
+
+    ui.start.onclick = () => {
+        const uid = ui.userId.value.trim();
+        if (!uid) return alert('請輸入 ID');
+        ui.snd.volume = 0.01; ui.snd.play().then(() => { ui.snd.pause(); ui.snd.volume = 1; });
+        ui.silent.play().catch(e=>{});
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+        }
+        ui.loginSec.style.display = 'none'; ui.trackingSec.style.display = 'block'; ui.displayId.innerText = uid;
+        watchId = navigator.geolocation.watchPosition((pos) => {
+            const { latitude, longitude } = pos.coords;
+            const now = Date.now();
+            ui.coordsDisp.innerText = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            if (batteryInfo) ui.batteryDisp.innerText = `${batteryInfo.level}% ${batteryInfo.charging ? '⚡' : ''}`;
+            let payload = { lat: latitude, lng: longitude, timestamp: new Date().toISOString(), status: "active" };
+            if (batteryInfo) { payload.battery = batteryInfo.level; payload.charging = batteryInfo.charging; }
+            update(ref(db, `tracking/users/${uid}`), payload);
+            if (now - lastHistoryTime > 60000) {
+                lastHistoryTime = now;
+                set(ref(db, `tracking/history/${uid}/${now}`), { lat: latitude, lng: longitude });
+            }
+        }, (err) => { ui.coordsDisp.innerText = `定位錯誤`; }, { enableHighAccuracy: true });
+        listenCmd(uid);
+    };
+
+    ui.stop.onclick = () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        ui.silent.pause();
+        location.reload();
+    };
+    
+    function listenCmd(uid) {
+        onValue(ref(db, `tracking/users/${uid}`), (snap) => { if (!snap.exists() && watchId) location.reload(); });
+        let lastRetreatId = null;
+        onValue(ref(db, `tracking/commands/global/retreat`), (snap) => { 
+            const data = snap.val();
+            if (data && data.timestamp !== lastRetreatId) {
+                if (lastRetreatId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('全體人員立即撤退，重複，全體人員立即撤退，全體人員立即撤退', '#ff0000'); 
+                }
+                lastRetreatId = data.timestamp;
+            }
+        });
+        let lastTargetAlertId = null;
+        onValue(ref(db, `tracking/alerts/targeted_alert/${uid}`), (snap) => {
+            const data = snap.val();
+            if (data && data.timestamp !== lastTargetAlertId) {
+                if (lastTargetAlertId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('指揮中心發出緊急警報！', '#ff0055');
+                }
+                lastTargetAlertId = data.timestamp;
+            }
+        });
+        let lastCRId = null;
+        onValue(ref(db, `tracking/alerts/targeted_cr/${uid}`), (snap) => {
+            const data = snap.val();
+            if (data && data.timestamp !== lastCRId) {
+                if (lastCRId !== null || data.timestamp > Date.now() - 5000) {
+                    playAlert('請支援CR', '#ffcc00');
+                }
+                lastCRId = data.timestamp;
+            }
+        });
+        let lastPathId = null;
+        onValue(ref(db, `tracking/commands/${uid}/path_mission`), (snap) => {
+            const data = snap.val();
+            if (data && data.timestamp !== lastPathId) {
+                if (lastPathId !== null || data.timestamp > Date.now() - 5000) {
+                    const pts = data.points, dest = pts[pts.length - 1], wps = pts.slice(0, -1).map(p => p.join(',')).join('|');
+                    ui.nav.href = `https://www.google.com/maps/dir/?api=1&destination=${dest[0]},${dest[1]}&waypoints=${wps}`;
+                    ui.nav.style.display = 'block';
+                    playAlert('收到指定路徑任務', '#00ffaa');
+                }
+                lastPathId = data.timestamp;
+            }
+        });
+    }
+
+    function playAlert(msg, color) {
+        ui.snd.currentTime = 0; ui.snd.play().catch(e=>{});
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(msg); 
+            utter.lang = 'zh-TW'; 
+            window.speechSynthesis.speak(utter);
+        }
+        document.body.style.backgroundColor = color; 
+        setTimeout(() => document.body.style.backgroundColor = '#0a0a0a', 800);
+    }
 </script>
 </body>
 </html>

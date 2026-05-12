@@ -166,11 +166,13 @@
     import { firebaseConfig } from './firebase-config.js';
 
     // 💡 本機測試時請填入真實 Key
-    const OPENROUTER_API_KEY = "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";
+    const OPENROUTER_API_KEY = "REPLACE_WITH_OPENROUTER_KEY";
     // 💡 模型備援陣列
     const OPENROUTER_MODELS = [
+        "google/gemma-4-26b-a4b-it:free",
         "nvidia/nemotron-3-super-120b-a12b:free", 
-        "google/gemini-2.0-flash-exp:free"
+        "openrouter/free",
+        "google/gemini-2.5-flash"
     ];
 
     const app = initializeApp(firebaseConfig);

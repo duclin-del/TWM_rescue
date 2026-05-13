@@ -22,7 +22,10 @@ jobs:
           # 使用 sed 指令將預留字串替換為祕密變數
           sed -i "s/REPLACE_WITH_OPENROUTER_KEY/${{ secrets.MY_OPENROUTER_KEY }}/g" index.html
           sed -i "s/REPLACE_WITH_OPENROUTER_KEY/${{ secrets.MY_OPENROUTER_KEY }}/g" map.html
-
+          # 新增：替換兩個 Gemini API Key
+          sed -i "s/{{MY_GEMINI_KEY_1}}/${{ secrets.MY_GEMINI_KEY_1 }}/g" map.html
+          sed -i "s/{{MY_GEMINI_KEY_2}}/${{ secrets.MY_GEMINI_KEY_2 }}/g" map.html 
+          
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
